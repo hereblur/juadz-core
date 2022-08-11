@@ -1,4 +1,4 @@
-import {RedisClientType} from 'redis';
+import { RedisClientType } from 'redis';
 import {ICacheAdaptor} from '../../types/cache';
 
 export default function useRedisAdaptor(redis: RedisClientType): ICacheAdaptor {
