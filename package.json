@@ -1,8 +1,9 @@
 {
-  "name": "@juadz/juadz-core",
-  "version": "0.0.1-b",
+  "name": "@juadz/core",
+  "version": "0.0.2",
   "description": "",
   "main": "build/src/index.js",
+  "types": "build/src/index.d.ts",
   "scripts": {
     "test": "jest .",
     "lint": "gts lint",
@@ -21,7 +22,7 @@
     "url": "https://github.com/hereblur/juadz-core"
   },
   "files": [
-    "lib/**/*"
+    "build/**/*"
   ],
   "dependencies": {
     "ajv": "^8.11.0"
