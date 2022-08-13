@@ -28,7 +28,7 @@ test('create schema', () => {
   json = sch.jsonSchema('create');
 
   expect(json.properties.string).toMatchObject({type: 'string'});
-  expect(json.properties.integer).toMatchObject({type: 'number'});
+  expect(json.properties.integer).toMatchObject({type: 'integer'});
   expect(json.properties.number).toMatchObject({type: 'number'});
   expect(json.properties.dateTime).toMatchObject({type: 'string'});
   expect(json.properties.boolean).toMatchObject({type: 'boolean'});

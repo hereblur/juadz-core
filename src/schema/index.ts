@@ -1,4 +1,5 @@
 import Ajv, {JSONSchemaType, ValidateFunction} from 'ajv';
+import AjvFormats from 'ajv-formats';
 import {PropertiesSchema} from 'ajv/dist/types/json-schema';
 import {mayi} from '../acl';
 import {IACLActor} from '../types/acl';
@@ -6,6 +7,7 @@ import {IDataRecord} from '../types/crud';
 import {ErrorToHttp} from '../types/http';
 
 const ajv = new Ajv();
+AjvFormats(ajv);
 
 interface ISchemaActionHookParams {
   action: string;
@@ -24,7 +26,7 @@ interface ISchemaViewTransform {
 }
 
 interface SimpleObject {
-  [k:string]: unknown
+  [k: string]: unknown;
 }
 
 interface ISchemaFieldOptions extends SimpleObject {
@@ -304,21 +306,18 @@ const helperTypes = (
   baseType: string,
   extra: object = {}
 ) => {
+  const extra2 = {...lz};
+  delete extra2.isVirtual;
+  delete extra2.isCreate;
+  delete extra2.isUpdate;
+  delete extra2.isView;
+  delete extra2.isRequired;
+  delete extra2.allowedEmpty;
 
-  const {
-    isVirtual,
-    isCreate,
-    isUpdate,
-    isView,
-    isRequired,
-    allowedEmpty,
-    ...extra2
-  } = lz;
-
-  if (allowedEmpty) {
+  if (lz.allowedEmpty) {
     return {
       anyOf: [
-        {type: baseType, ...extra, ...extra2 },
+        {type: baseType, ...extra, ...extra2},
         {type: 'null'},
         {type: 'string', maxLength: 0},
       ],
@@ -330,7 +329,7 @@ const helperTypes = (
 
 export const helpers = {
   string(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'string', { maxLength: 255 }), lz};
+    return {...helperTypes(lz, 'string', {maxLength: 255}), lz};
   },
 
   text(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
@@ -354,19 +353,21 @@ export const helpers = {
   },
 
   email(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return { ...helperTypes(lz, 'string', { format: "email" }), lz};
+    return {...helperTypes(lz, 'string', {format: 'email'}), lz};
   },
 
   url(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return { ...helperTypes(lz, 'string', { format: "uri" }), lz};
+    return {...helperTypes(lz, 'string', {format: 'uri'}), lz};
   },
 
   uri(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return { ...helperTypes(lz, 'string', { format: "uri" }), lz};
+    return {...helperTypes(lz, 'string', {format: 'uri'}), lz};
   },
 
-  enum(enumValues: Array<string>, lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return { ...helperTypes(lz, 'string', { enum: enumValues }), lz};
+  enum(
+    enumValues: Array<string>,
+    lz: ISchemaFieldOptions = {}
+  ): ExtendedPropertiesSchema {
+    return {...helperTypes(lz, 'string', {enum: enumValues}), lz};
   },
-  
 };
