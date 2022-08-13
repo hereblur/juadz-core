@@ -23,7 +23,11 @@ interface ISchemaViewTransform {
   (value: unknown, actor: IACLActor, record: IDataRecord): unknown;
 }
 
-interface ISchemaFieldOptions {
+interface SimpleObject {
+  [k:string]: unknown
+}
+
+interface ISchemaFieldOptions extends SimpleObject {
   isVirtual?: boolean;
   isCreate?: boolean | string;
   isUpdate?: boolean | string;
@@ -300,37 +304,69 @@ const helperTypes = (
   baseType: string,
   extra: object = {}
 ) => {
-  if (lz.allowedEmpty) {
+
+  const {
+    isVirtual,
+    isCreate,
+    isUpdate,
+    isView,
+    isRequired,
+    allowedEmpty,
+    ...extra2
+  } = lz;
+
+  if (allowedEmpty) {
     return {
       anyOf: [
-        {type: baseType, ...extra},
+        {type: baseType, ...extra, ...extra2 },
         {type: 'null'},
         {type: 'string', maxLength: 0},
       ],
     };
   }
 
-  return {type: baseType};
+  return {type: baseType, ...extra, ...extra2};
 };
 
 export const helpers = {
-  string(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
+  string(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
+    return {...helperTypes(lz, 'string', { maxLength: 255 }), lz};
+  },
+
+  text(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
     return {...helperTypes(lz, 'string'), lz};
   },
 
-  integer(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
+  integer(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
+    return {...helperTypes(lz, 'integer'), lz};
+  },
+
+  number(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
     return {...helperTypes(lz, 'number'), lz};
   },
 
-  number(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'number'), lz};
-  },
-
-  dateTime(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
+  dateTime(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
     return {...helperTypes(lz, 'string', {format: 'date-time'}), lz};
   },
 
-  boolean(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
+  boolean(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
     return {...helperTypes(lz, 'boolean'), lz};
   },
+
+  email(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
+    return { ...helperTypes(lz, 'string', { format: "email" }), lz};
+  },
+
+  url(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
+    return { ...helperTypes(lz, 'string', { format: "uri" }), lz};
+  },
+
+  uri(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
+    return { ...helperTypes(lz, 'string', { format: "uri" }), lz};
+  },
+
+  enum(enumValues: Array<string>, lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
+    return { ...helperTypes(lz, 'string', { enum: enumValues }), lz};
+  },
+  
 };
