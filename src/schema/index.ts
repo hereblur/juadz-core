@@ -13,6 +13,7 @@ interface ISchemaActionHookParams {
   action: string;
   actor: IACLActor;
   raw: IDataRecord;
+  id?: number | string | unknown;
 }
 
 interface ISchemaActionHook {
@@ -42,6 +43,7 @@ interface ISchemaOptions {
   onCreate?: ISchemaActionHook;
   onUpdate?: ISchemaActionHook;
   onView?: ISchemaActionHook;
+  onDelete?: ISchemaActionHook;
 }
 
 type ValidateAction = 'create' | 'update' | 'view';
@@ -155,12 +157,23 @@ export default class ResourceSchema {
   }
 
   async validate(
-    action: ValidateAction,
+    action: ValidateAction | 'delete',
     data: IDataRecord,
-    actor: IACLActor
+    actor: IACLActor,
+    updatingId?: number | string | unknown
   ): Promise<IDataRecord> {
     let pass = true;
     let errors = null;
+
+    if (action === 'delete') {
+      if (this.options.onDelete) {
+        await this.options.onDelete(
+          {},
+          {action, actor, id: updatingId, raw: {}}
+        );
+      }
+      return {};
+    }
 
     switch (action) {
       case 'create':
@@ -244,6 +257,7 @@ export default class ResourceSchema {
             raw: data,
             actor,
             action,
+            id: updatingId,
           });
         }
         break;

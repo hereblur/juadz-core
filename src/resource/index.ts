@@ -29,7 +29,7 @@ export default class JuadzResource {
     return this.dbConnection;
   }
 
-  async get(actor: IACLActor, id: string) {
+  async get(actor: IACLActor, id: string | number) {
     if (!mayi(actor, `view.${this.resourceName}`)) {
       throw new ErrorToHttp(
         `Permission denied view.${this.resourceName}`,
@@ -43,8 +43,8 @@ export default class JuadzResource {
     return this.schema.viewAs(data, actor);
   }
 
-  async update(actor: IACLActor, id: string, patch_: IDataRecord) {
-    const patch = await this.schema.validate('update', patch_, actor);
+  async update(actor: IACLActor, id: string | number, patch_: IDataRecord) {
+    const patch = await this.schema.validate('update', patch_, actor, id);
     const data = await this.model.update(
       this.getConnection('update', actor),
       id,
@@ -56,7 +56,7 @@ export default class JuadzResource {
   async create(actor: IACLActor, params_: IDataRecord) {
     if (!mayi(actor, `create.${this.resourceName}`)) {
       throw new ErrorToHttp(
-        'Permission denied create.${this.resourceName}',
+        `Permission denied create.${this.resourceName}`,
         403,
         {message: 'Permission denied'}
       );
@@ -71,22 +71,22 @@ export default class JuadzResource {
     return this.schema.viewAs(data, actor);
   }
 
-  async delete(actor: IACLActor, id: string) {
+  async delete(actor: IACLActor, id: string | number) {
     if (!mayi(actor, `delete.${this.resourceName}`)) {
       throw new ErrorToHttp(
-        'Permission denied delete.${this.resourceName}',
+        `Permission denied delete.${this.resourceName}`,
         403,
         {message: 'Permission denied'}
       );
     }
-
+    await this.schema.validate('delete', {}, actor, id);
     return await this.model.delete(this.getConnection('delete', actor), id);
   }
 
   async list(actor: IACLActor, params: IQueryParam) {
     if (!mayi(actor, `view.${this.resourceName}`)) {
       throw new ErrorToHttp(
-        'Permission denied view.${this.resourceName}',
+        `Permission denied view.${this.resourceName}`,
         403,
         {message: 'Permission denied'}
       );
