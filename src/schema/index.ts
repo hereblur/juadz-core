@@ -7,30 +7,35 @@ import {ErrorToHttp} from '../types/http';
 
 const ajv = new Ajv();
 
-interface ISchemaHookParams {
-  actor?: IACLActor;
-  record?: IDataRecord;
-  resourceName?: string;
-  fieldName?: string;
+interface ISchemaActionHookParams {
+  action: string;
+  actor: IACLActor;
+  raw: IDataRecord;
 }
 
-interface ISchemaHook {
-  (action: string, value: unknown, params?: ISchemaHookParams):
-    | unknown
-    | Promise<unknown>;
+interface ISchemaActionHook {
+  (data: IDataRecord, params: ISchemaActionHookParams):
+    | IDataRecord
+    | Promise<IDataRecord>;
 }
 
-interface SchemaOptions {
+interface ISchemaViewTransform {
+  (value: unknown, actor: IACLActor, record: IDataRecord): unknown;
+}
+
+interface ISchemaFieldOptions {
   isVirtual?: boolean;
-  isTextSearch?: boolean;
-  isScopeIndex?: boolean;
   isCreate?: boolean | string;
   isUpdate?: boolean | string;
-  allowedEmpty?: boolean;
-  isView?: boolean | string | ISchemaHook;
+  isView?: boolean | string | ISchemaViewTransform;
   isRequired?: boolean;
+  allowedEmpty?: boolean;
+}
 
-  hook?: ISchemaHook;
+interface ISchemaOptions {
+  onCreate?: ISchemaActionHook;
+  onUpdate?: ISchemaActionHook;
+  onView?: ISchemaActionHook;
 }
 
 type ValidateAction = 'create' | 'update' | 'view';
@@ -39,11 +44,11 @@ type Properties = {
   [field: string]: unknown;
 };
 type ExtendedPropertiesSchema = Properties & {
-  lz?: SchemaOptions;
+  lz?: ISchemaFieldOptions;
 };
 
 interface FieldOptions {
-  [key: string]: SchemaOptions;
+  [key: string]: ISchemaFieldOptions;
 }
 
 const lzAction = (
@@ -78,16 +83,23 @@ export default class ResourceSchema {
 
   requiredFields: Array<string> = [];
 
-  options: FieldOptions = {};
+  fieldOptions: FieldOptions = {};
 
-  constructor(resourceName: string, fields: ExtendedPropertiesSchema) {
+  options: ISchemaOptions = {};
+
+  constructor(
+    resourceName: string,
+    fields: ExtendedPropertiesSchema,
+    schemaOptions?: ISchemaOptions
+  ) {
     this.fields = fields;
     this.resourceName = resourceName;
+    this.options = schemaOptions || {};
 
     Object.keys(fields).forEach(name => {
       const {lz = {}, ...field} = fields[name] as ExtendedPropertiesSchema;
       const properties: ExtendedPropertiesSchema = field;
-      this.options[name] = lz;
+      this.fieldOptions[name] = lz;
 
       if (lz.isCreate !== false) {
         this.createSchema[name] = properties;
@@ -106,10 +118,6 @@ export default class ResourceSchema {
     this.createValidator = ajv.compile(this.jsonSchema('create'));
     this.updateValidator = ajv.compile(this.jsonSchema('update'));
     this.viewValidator = ajv.compile(this.jsonSchema('view'));
-  }
-
-  getSearchFields() {
-    return Object.keys(this.options).filter(f => this.options[f].isTextSearch);
   }
 
   jsonSchema(action: ValidateAction): JSONSchemaType<IDataRecord> {
@@ -208,26 +216,42 @@ export default class ResourceSchema {
           }
         }
 
-        let patch: IDataRecord = lz.isVirtual ? {} : {[fname]: data[fname]};
-
-        if (lz.hook) {
-          const v = await lz.hook(action, data[fname], {
-            record: data,
-            actor,
-            resourceName: this.resourceName,
-            fieldName: fname,
-          });
-
-          if (typeof v === 'object') {
-            patch = v as IDataRecord;
-          } else {
-            patch[fname] = v;
-          }
-        }
+        const patch: IDataRecord = lz.isVirtual ? {} : {[fname]: data[fname]};
 
         Object.keys(patch).forEach(k => (output[k] = patch[k]));
       })
     );
+
+    switch (action) {
+      case 'create':
+        if (this.options.onCreate) {
+          return await this.options.onCreate(output, {
+            raw: data,
+            actor,
+            action,
+          });
+        }
+        break;
+      case 'update':
+        if (this.options.onUpdate) {
+          return await this.options.onUpdate(output, {
+            raw: data,
+            actor,
+            action,
+          });
+        }
+        break;
+      case 'view':
+        if (this.options.onView) {
+          return await this.options.onView(output, {
+            raw: data,
+            actor,
+            action,
+          });
+        }
+        break;
+    }
+
     return output;
   }
 
@@ -250,12 +274,7 @@ export default class ResourceSchema {
       }
 
       if (typeof lz.isView === 'function') {
-        output[fname] = lz.isView('view', data[fname], {
-          record: data,
-          actor,
-          resourceName: this.resourceName,
-          fieldName: fname,
-        });
+        output[fname] = lz.isView(data[fname], actor, data);
         return;
       }
 
@@ -269,7 +288,6 @@ export default class ResourceSchema {
         return;
       }
 
-      // console.log(`data ${JSON.stringify(data, null, 2)}/${fname}`);
       output[fname] = data[fname];
     });
 
@@ -278,7 +296,7 @@ export default class ResourceSchema {
 }
 
 const helperTypes = (
-  lz: SchemaOptions,
+  lz: ISchemaFieldOptions,
   baseType: string,
   extra: object = {}
 ) => {
@@ -296,23 +314,23 @@ const helperTypes = (
 };
 
 export const helpers = {
-  string(lz: SchemaOptions): ExtendedPropertiesSchema {
+  string(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
     return {...helperTypes(lz, 'string'), lz};
   },
 
-  integer(lz: SchemaOptions): ExtendedPropertiesSchema {
+  integer(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
     return {...helperTypes(lz, 'number'), lz};
   },
 
-  number(lz: SchemaOptions): ExtendedPropertiesSchema {
+  number(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
     return {...helperTypes(lz, 'number'), lz};
   },
 
-  dateTime(lz: SchemaOptions): ExtendedPropertiesSchema {
+  dateTime(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
     return {...helperTypes(lz, 'string', {format: 'date-time'}), lz};
   },
 
-  boolean(lz: SchemaOptions): ExtendedPropertiesSchema {
+  boolean(lz: ISchemaFieldOptions): ExtendedPropertiesSchema {
     return {...helperTypes(lz, 'boolean'), lz};
   },
 };

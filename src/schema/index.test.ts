@@ -1,4 +1,3 @@
-import {IDataRecord} from '../types/crud';
 import ResourceSchema, {helpers} from './index';
 
 test('create schema', () => {
@@ -41,7 +40,7 @@ test('filterView', () => {
     integer: helpers.integer({isRequired: true}),
     reverse: helpers.string({
       isRequired: true,
-      isView: (_action: string, value: unknown) => `${value}`.toUpperCase(),
+      isView: (value: unknown) => `${value}`.toUpperCase(),
     }),
     secret: helpers.string({isRequired: true, isView: false}),
     restricted: helpers.string({
@@ -59,7 +58,6 @@ test('filterView', () => {
   };
 
   const result1 = sch.viewAs(data, {
-    scope: '',
     permissions: ['view.test', 'view.test.restricted'],
   });
 
@@ -73,7 +71,6 @@ test('filterView', () => {
   expect(result1).not.toHaveProperty(['secret']);
 
   const result2 = sch.viewAs(data, {
-    scope: '',
     permissions: ['view.test'],
   });
 
@@ -87,21 +84,30 @@ test('filterView', () => {
 });
 
 test('beforeSave', async () => {
-  const sch = new ResourceSchema('test', {
-    string: helpers.string({}),
-    upperCase: helpers.string({
-      hook: (action: string, v: unknown): unknown => `${v}`.toUpperCase(),
-    }),
-    virtual: helpers.string({
-      isVirtual: true,
-      hook: (action: string, v: unknown): unknown => ({hashed: `hased[${v}]`}),
-    }),
-    restricted: helpers.string({
-      isCreate: false,
-      isUpdate: 'update.test.god',
-      hook: (action: string, v: unknown): unknown => `${v}`.toUpperCase(),
-    }),
-  });
+  const sch = new ResourceSchema(
+    'test',
+    {
+      string: helpers.string({}),
+      upperCase: helpers.string({}),
+      virtual: helpers.string({
+        isVirtual: true,
+      }),
+      restricted: helpers.string({
+        isCreate: false,
+        isUpdate: 'update.test.god',
+      }),
+    },
+    {
+      onUpdate: (data, {raw}) => {
+        return {
+          ...data,
+          upperCase: `${data['upperCase']}`.toUpperCase(),
+          restricted: `${data['upperCase']}`.toUpperCase(),
+          hashed: `hashed[${raw['virtual']}]`,
+        };
+      },
+    }
+  );
 
   const data = {
     string: 'public',
@@ -110,21 +116,19 @@ test('beforeSave', async () => {
   };
 
   const result1 = await sch.validate('update', data, {
-    scope: '',
     permissions: ['update.test'],
   });
 
   expect(result1).toMatchObject({
     string: 'public',
     upperCase: 'ABCD',
-    hashed: 'hased[VirTualz]',
+    hashed: 'hashed[VirTualz]',
   });
 
   expect(result1).not.toHaveProperty(['virtual']);
 
   await sch
     .validate('create', data, {
-      scope: '',
       permissions: ['update.test'],
     })
     .then(v => {
@@ -139,7 +143,6 @@ test('beforeSave', async () => {
       'update',
       {...data, restricted: 'hacked'},
       {
-        scope: '',
         permissions: ['update.test'],
       }
     )
@@ -157,7 +160,6 @@ test('beforeSave', async () => {
       'update',
       {...data, restricted: 'hacked'},
       {
-        scope: '',
         permissions: ['update.test', 'update.test.god'],
       }
     )

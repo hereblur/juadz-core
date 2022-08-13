@@ -1,22 +1,36 @@
-import {Cache, CacheClass} from 'memory-cache';
+import type {CacheClass} from 'memory-cache';
 import {ICacheAdaptor} from '../../types/cache';
 
 export default function useMemoryCacheAdaptor(
   memoryCacheInstance: CacheClass<string, unknown> | null = null
 ): ICacheAdaptor {
-  const cacheInstance = memoryCacheInstance ? memoryCacheInstance : new Cache();
+  let cacheInstance: CacheClass<string, unknown>;
+
+  const cacheHandler = async () => {
+    if (cacheInstance) {
+      return cacheInstance;
+    }
+    const {Cache} = await import('memory-cache');
+    cacheInstance = new Cache();
+    return cacheInstance;
+  };
+
+  if (memoryCacheInstance) {
+    cacheInstance = memoryCacheInstance;
+  }
 
   return {
-    get: async (k: string): Promise<unknown> => cacheInstance.get(k) as unknown,
+    get: async (k: string): Promise<unknown> =>
+      (await cacheHandler()).get(k) as unknown,
     put: async (
       k: string,
       data: unknown,
       ageSeconds: number
     ): Promise<void> => {
-      cacheInstance.put(k, data, ageSeconds * 1000);
+      (await cacheHandler()).put(k, data, ageSeconds * 1000);
     },
     delete: async (k: string): Promise<void> => {
-      cacheInstance.del(k);
+      (await cacheHandler()).del(k);
     },
   };
 }

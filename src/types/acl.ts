@@ -1,5 +1,4 @@
-export interface IACLActor {
+export interface IACLActor extends Object {
   permissions: Array<string>;
-  scope?: string;
   $$_NO_SECURITY_$$?: string;
 }

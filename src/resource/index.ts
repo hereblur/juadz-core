@@ -8,7 +8,6 @@ export default class JuadzResource {
   resourceName: string;
   schema: ResourceSchema;
   model: ICrudModel;
-  scopeFieldName = '';
   dbConnection: unknown | Function;
 
   constructor(
@@ -20,22 +19,11 @@ export default class JuadzResource {
     this.schema = schema;
     this.model = model;
     this.dbConnection = dbConnection;
-
-    const scopeFieldNames = Object.keys(schema.options).filter(
-      f => schema.options[f].isScopeIndex === true
-    );
-    if (scopeFieldNames.length > 1) {
-      throw new Error(
-        `Should have only one scope Index field [${schema.resourceName}]`
-      );
-    }
-
-    this.scopeFieldName = scopeFieldNames[0] || '';
   }
 
-  getConnection(action: string) {
+  getConnection(action: string, actor: IACLActor) {
     if (typeof this.dbConnection === 'function') {
-      return this.dbConnection(this.resourceName, action);
+      return this.dbConnection(this.resourceName, action, actor);
     }
 
     return this.dbConnection;
@@ -50,19 +38,15 @@ export default class JuadzResource {
       );
     }
 
-    const data = await this.model.get(this.getConnection('view'), id);
+    const data = await this.model.get(this.getConnection('view', actor), id);
 
     return this.schema.viewAs(data, actor);
   }
 
   async update(actor: IACLActor, id: string, patch_: IDataRecord) {
-    if (this.scopeFieldName && patch_[this.scopeFieldName]) {
-      throw new Error(`Do not update ${this.scopeFieldName}`);
-    }
-
     const patch = await this.schema.validate('update', patch_, actor);
     const data = await this.model.update(
-      this.getConnection('update'),
+      this.getConnection('update', actor),
       id,
       patch
     );
@@ -80,13 +64,10 @@ export default class JuadzResource {
 
     const params = await this.schema.validate('create', params_, actor);
 
-    if (this.scopeFieldName) {
-      if (params[this.scopeFieldName]) {
-        throw new Error(`Do not specify ${this.scopeFieldName}`);
-      }
-      params[this.scopeFieldName] = actor.scope;
-    }
-    const data = await this.model.create(this.getConnection('create'), params);
+    const data = await this.model.create(
+      this.getConnection('create', actor),
+      params
+    );
     return this.schema.viewAs(data, actor);
   }
 
@@ -99,7 +80,7 @@ export default class JuadzResource {
       );
     }
 
-    return await this.model.delete(this.getConnection('delete'), id);
+    return await this.model.delete(this.getConnection('delete', actor), id);
   }
 
   async list(actor: IACLActor, params: IQueryParam) {
@@ -112,7 +93,7 @@ export default class JuadzResource {
     }
 
     const {total, data} = await this.model.list(
-      this.getConnection('view'),
+      this.getConnection('view', actor),
       params
     );
 

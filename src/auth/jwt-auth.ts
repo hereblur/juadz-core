@@ -1,4 +1,4 @@
-import {Secret, sign, verify, SignOptions, VerifyOptions} from 'jsonwebtoken';
+import type {Secret, SignOptions, VerifyOptions} from 'jsonwebtoken';
 import {IACLActor} from '../types/acl';
 import {ErrorToHttp, IHttpJsonResponse} from '../types/http';
 
@@ -8,6 +8,13 @@ interface KeyPair {
   passphrase?: string;
 }
 
+interface JsonWebToken {
+  sign: Function;
+  verify: Function;
+}
+
+let jwtLib: JsonWebToken | null = null;
+
 export default function useJWT(
   secret: string | KeyPair,
   signOptions: SignOptions,
@@ -15,6 +22,10 @@ export default function useJWT(
 ) {
   return {
     authen: async (actor: IACLActor): Promise<IHttpJsonResponse> => {
+      if (!jwtLib) {
+        jwtLib = (await import('jsonwebtoken')) as JsonWebToken;
+      }
+
       let secretOrPrivateKey: Secret;
       if (typeof secret === 'object') {
         if (secret.passphrase) {
@@ -29,7 +40,7 @@ export default function useJWT(
         secretOrPrivateKey = secret;
       }
 
-      const jwtToken = sign(actor, secretOrPrivateKey, signOptions);
+      const jwtToken = jwtLib.sign(actor, secretOrPrivateKey, signOptions);
       return {
         headers: {},
         body: {
@@ -39,6 +50,10 @@ export default function useJWT(
       };
     },
     verify: async (token: string): Promise<IACLActor> => {
+      if (!jwtLib) {
+        jwtLib = (await import('jsonwebtoken')) as JsonWebToken;
+      }
+
       let secretOrPublicKey: Secret;
       if (typeof secret === 'object') {
         if (secret.passphrase) {
@@ -54,7 +69,7 @@ export default function useJWT(
       }
 
       try {
-        return verify(
+        return jwtLib.verify(
           token.replace(/^Bearer /gi, ''),
           secretOrPublicKey,
           verifyOptions

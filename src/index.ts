@@ -1,4 +1,4 @@
-import JuadzSchema from './schema';
+import JuadzSchema, {helpers as JuadzSchemaHelpers} from './schema';
 import JuadzResource from './resource';
 
 import useCachedAuth from './auth/cached-auth';
@@ -21,6 +21,7 @@ import RefineListQueryAdaptors from './list-query-adaptors/refine';
 
 export {
   JuadzSchema,
+  JuadzSchemaHelpers,
   JuadzCache,
   JuadzResource,
   JuadzListQueryAdaptors,
