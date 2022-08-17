@@ -44,6 +44,7 @@ interface ISchemaOptions {
   onUpdate?: ISchemaActionHook;
   onView?: ISchemaActionHook;
   onDelete?: ISchemaActionHook;
+  permissionName?: string;
 }
 
 type ValidateAction = 'create' | 'update' | 'view';
@@ -89,6 +90,8 @@ export default class ResourceSchema {
 
   resourceName: string;
 
+  permissionName: string;
+
   requiredFields: Array<string> = [];
 
   fieldOptions: FieldOptions = {};
@@ -103,6 +106,7 @@ export default class ResourceSchema {
     this.fields = fields;
     this.resourceName = resourceName;
     this.options = schemaOptions || {};
+    this.permissionName = this.options.permissionName || resourceName;
 
     Object.keys(fields).forEach(name => {
       const {lz = {}, ...field} = fields[name] as ExtendedPropertiesSchema;
@@ -199,7 +203,7 @@ export default class ResourceSchema {
       }
     }
 
-    if (!mayi(actor, `${action}.${this.resourceName}`)) {
+    if (!mayi(actor, `${action}.${this.permissionName}`)) {
       throw new ErrorToHttp('Permission denied', 403, true);
     }
 
@@ -282,7 +286,7 @@ export default class ResourceSchema {
       return data;
     }
 
-    if (!mayi(actor, `view.${this.resourceName}`)) {
+    if (!mayi(actor, `view.${this.permissionName}`)) {
       throw new ErrorToHttp('Permission denied', 403, true);
     }
 

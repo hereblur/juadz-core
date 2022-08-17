@@ -6,6 +6,7 @@ import {ErrorToHttp} from '../types/http';
 
 export default class JuadzResource {
   resourceName: string;
+  permissionName: string;
   schema: ResourceSchema;
   model: ICrudModel;
   dbConnection: unknown | Function;
@@ -19,6 +20,7 @@ export default class JuadzResource {
     this.schema = schema;
     this.model = model;
     this.dbConnection = dbConnection;
+    this.permissionName = schema.resourceName;
   }
 
   getConnection(action: string, actor: IACLActor) {
@@ -30,9 +32,15 @@ export default class JuadzResource {
   }
 
   async get(actor: IACLActor, id: string | number) {
-    if (!mayi(actor, `view.${this.resourceName}`)) {
+    if (!this.model.get) {
+      throw new ErrorToHttp(`Model not defined ${this.resourceName}.get`, 404, {
+        message: 'Not found.',
+      });
+    }
+
+    if (!mayi(actor, `view.${this.permissionName}`)) {
       throw new ErrorToHttp(
-        `Permission denied view.${this.resourceName}`,
+        `Permission denied view.${this.permissionName}`,
         403,
         {message: 'Permission denied'}
       );
@@ -44,6 +52,14 @@ export default class JuadzResource {
   }
 
   async update(actor: IACLActor, id: string | number, patch_: IDataRecord) {
+    if (!this.model.update) {
+      throw new ErrorToHttp(
+        `Model not defined ${this.resourceName}.update`,
+        404,
+        {message: 'Not found.'}
+      );
+    }
+
     const patch = await this.schema.validate('update', patch_, actor, id);
     const data = await this.model.update(
       this.getConnection('update', actor),
@@ -54,9 +70,17 @@ export default class JuadzResource {
   }
 
   async create(actor: IACLActor, params_: IDataRecord) {
-    if (!mayi(actor, `create.${this.resourceName}`)) {
+    if (!this.model.create) {
       throw new ErrorToHttp(
-        `Permission denied create.${this.resourceName}`,
+        `Model not defined ${this.resourceName}.create`,
+        404,
+        {message: 'Not found.'}
+      );
+    }
+
+    if (!mayi(actor, `create.${this.permissionName}`)) {
+      throw new ErrorToHttp(
+        `Permission denied create.${this.permissionName}`,
         403,
         {message: 'Permission denied'}
       );
@@ -72,7 +96,15 @@ export default class JuadzResource {
   }
 
   async delete(actor: IACLActor, id: string | number) {
-    if (!mayi(actor, `delete.${this.resourceName}`)) {
+    if (!this.model.delete) {
+      throw new ErrorToHttp(
+        `Model not defined ${this.resourceName}.delete`,
+        404,
+        {message: 'Not found.'}
+      );
+    }
+
+    if (!mayi(actor, `delete.${this.permissionName}`)) {
       throw new ErrorToHttp(
         `Permission denied delete.${this.resourceName}`,
         403,
@@ -84,9 +116,17 @@ export default class JuadzResource {
   }
 
   async list(actor: IACLActor, params: IQueryParam) {
-    if (!mayi(actor, `view.${this.resourceName}`)) {
+    if (!this.model.list) {
       throw new ErrorToHttp(
-        `Permission denied view.${this.resourceName}`,
+        `Model not defined ${this.resourceName}.list`,
+        404,
+        {message: 'Not found.'}
+      );
+    }
+
+    if (!mayi(actor, `view.${this.permissionName}`)) {
+      throw new ErrorToHttp(
+        `Permission denied view.${this.permissionName}`,
         403,
         {message: 'Permission denied'}
       );

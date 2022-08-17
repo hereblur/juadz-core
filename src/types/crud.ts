@@ -56,15 +56,15 @@ export interface IDataRecord {
 }
 
 export interface ICrudModel {
-  get: (connection: unknown, id: string | number) => Promise<IDataRecord>;
-  update: (
+  get?: (connection: unknown, id: string | number) => Promise<IDataRecord>;
+  update?: (
     connection: unknown,
     id: string | number,
     patch: IDataRecord
   ) => Promise<IDataRecord>;
-  create: (connection: unknown, data: IDataRecord) => Promise<IDataRecord>;
-  delete: (connection: unknown, id: string | number) => Promise<number>;
-  list: IQueryListFunction;
+  create?: (connection: unknown, data: IDataRecord) => Promise<IDataRecord>;
+  delete?: (connection: unknown, id: string | number) => Promise<number>;
+  list?: IQueryListFunction;
 }
 
 export interface IQueryAdaptor {

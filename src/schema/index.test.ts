@@ -35,19 +35,25 @@ test('create schema', () => {
 });
 
 test('filterView', () => {
-  const sch = new ResourceSchema('test', {
-    string: helpers.string({isRequired: true}),
-    integer: helpers.integer({isRequired: true}),
-    reverse: helpers.string({
-      isRequired: true,
-      isView: (value: unknown) => `${value}`.toUpperCase(),
-    }),
-    secret: helpers.string({isRequired: true, isView: false}),
-    restricted: helpers.string({
-      isRequired: true,
-      isView: 'view.test.restricted',
-    }),
-  });
+  const sch = new ResourceSchema(
+    'test',
+    {
+      string: helpers.string({isRequired: true}),
+      integer: helpers.integer({isRequired: true}),
+      reverse: helpers.string({
+        isRequired: true,
+        isView: (value: unknown) => `${value}`.toUpperCase(),
+      }),
+      secret: helpers.string({isRequired: true, isView: false}),
+      restricted: helpers.string({
+        isRequired: true,
+        isView: 'view.real.restricted',
+      }),
+    },
+    {
+      permissionName: 'real',
+    }
+  );
 
   const data = {
     string: 'public',
@@ -58,7 +64,7 @@ test('filterView', () => {
   };
 
   const result1 = sch.viewAs(data, {
-    permissions: ['view.test', 'view.test.restricted'],
+    permissions: ['view.real', 'view.real.restricted'],
   });
 
   expect(result1).toMatchObject({
@@ -71,7 +77,7 @@ test('filterView', () => {
   expect(result1).not.toHaveProperty(['secret']);
 
   const result2 = sch.viewAs(data, {
-    permissions: ['view.test'],
+    permissions: ['view.real'],
   });
 
   expect(result2).toMatchObject({
