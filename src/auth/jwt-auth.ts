@@ -1,6 +1,9 @@
 import type {Secret, SignOptions, VerifyOptions} from 'jsonwebtoken';
 import {IACLActor} from '../types/acl';
 import {ErrorToHttp, IHttpJsonResponse} from '../types/http';
+import Debug from 'debug';
+
+const debug = Debug('juadz/core')
 
 interface KeyPair {
   privateKey: string;
@@ -50,6 +53,7 @@ export default function useJWT(
       };
     },
     verify: async (token: string): Promise<IACLActor> => {
+      debug(`jwt verifying: ${token}`);
       if (!jwtLib) {
         jwtLib = (await import('jsonwebtoken')) as JsonWebToken;
       }
@@ -75,6 +79,7 @@ export default function useJWT(
           verifyOptions
         ) as IACLActor;
       } catch (error) {
+        debug(`jwt verify failed: ${token}`, error);
         throw new ErrorToHttp((error as Error).message, 401, {
           message: 'Session invalid or expires',
         });
