@@ -20,7 +20,7 @@ export default class JuadzResource {
     this.schema = schema;
     this.model = model;
     this.dbConnection = dbConnection;
-    this.permissionName = schema.resourceName;
+    this.permissionName = schema.permissionName || schema.resourceName;
   }
 
   getConnection(action: string, actor: IACLActor) {
