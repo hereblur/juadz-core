@@ -46,7 +46,11 @@ export default class JuadzResource {
       );
     }
 
-    const data = await this.model.get(this.getConnection('view', actor), id);
+    const data = await this.model.get(
+      this.getConnection('view', actor),
+      id,
+      actor
+    );
 
     return this.schema.viewAs(data, actor);
   }
@@ -64,7 +68,8 @@ export default class JuadzResource {
     const data = await this.model.update(
       this.getConnection('update', actor),
       id,
-      patch
+      patch,
+      actor
     );
     return this.schema.viewAs(data, actor);
   }
@@ -90,7 +95,8 @@ export default class JuadzResource {
 
     const data = await this.model.create(
       this.getConnection('create', actor),
-      params
+      params,
+      actor
     );
     return this.schema.viewAs(data, actor);
   }
@@ -112,7 +118,11 @@ export default class JuadzResource {
       );
     }
     await this.schema.validate('delete', {}, actor, id);
-    return await this.model.delete(this.getConnection('delete', actor), id);
+    return await this.model.delete(
+      this.getConnection('delete', actor),
+      id,
+      actor
+    );
   }
 
   async list(actor: IACLActor, params: IQueryParam) {
@@ -134,7 +144,8 @@ export default class JuadzResource {
 
     const {total, data} = await this.model.list(
       this.getConnection('view', actor),
-      params
+      params,
+      actor
     );
 
     return {

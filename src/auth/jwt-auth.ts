@@ -3,7 +3,7 @@ import {IACLActor} from '../types/acl';
 import {ErrorToHttp, IHttpJsonResponse} from '../types/http';
 import Debug from 'debug';
 
-const debug = Debug('juadz/core')
+const debug = Debug('juadz/core');
 
 interface KeyPair {
   privateKey: string;

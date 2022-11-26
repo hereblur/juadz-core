@@ -1,5 +1,6 @@
 import JuadzSchema, {helpers as JuadzSchemaHelpers} from './schema';
 import JuadzResource from './resource';
+export * from './acl';
 
 import useCachedAuth from './auth/cached-auth';
 import useJWTAuth from './auth/jwt-auth';

@@ -204,6 +204,7 @@ export default class ResourceSchema {
     }
 
     if (!mayi(actor, `${action}.${this.permissionName}`)) {
+      console.log(JSON.stringify(actor), `${action}.${this.permissionName}`);
       throw new ErrorToHttp('Permission denied', 403, true);
     }
 
