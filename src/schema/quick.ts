@@ -6,7 +6,8 @@ export const stripFlags = (
   const schema_ = {...schema};
   delete schema_.$virtual;
   delete schema_.$create;
-  delete schema_.$update;
+  delete schema_.$replace;
+  delete schema_.$patch;
   delete schema_.$view;
   delete schema_.$required;
   delete schema_.$allowedEmpty;
@@ -17,8 +18,9 @@ export const stripFlags = (
 export const getFlags = (
   schema: ExtendedPropertiesSchema
 ): ExtendedPropertiesSchema => {
-  const {$virtual, $create, $update, $view, $required, $allowedEmpty} = schema;
-  return {$virtual, $create, $update, $view, $required, $allowedEmpty};
+  const {$virtual, $create, $replace, $patch, $view, $required, $allowedEmpty} =
+    schema;
+  return {$virtual, $create, $replace, $patch, $view, $required, $allowedEmpty};
 };
 
 const helperTypes = (

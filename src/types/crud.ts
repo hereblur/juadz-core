@@ -57,10 +57,15 @@ export interface IDataRecord {
 
 export interface ICrudModel {
   get?: (connection: unknown, id: string | number) => Promise<IDataRecord>;
-  update?: (
+  patch?: (
     connection: unknown,
     id: string | number,
     patch: IDataRecord
+  ) => Promise<IDataRecord>;
+  replace?: (
+    connection: unknown,
+    id: string | number,
+    data: IDataRecord
   ) => Promise<IDataRecord>;
   create?: (connection: unknown, data: IDataRecord) => Promise<IDataRecord>;
   delete?: (connection: unknown, id: string | number) => Promise<number>;

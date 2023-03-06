@@ -5,7 +5,7 @@ export interface ISchemaViewTransform {
   (value: unknown, actor: IACLActor, record: IDataRecord): unknown;
 }
 
-export type ValidateAction = 'create' | 'update' | 'view';
+export type ValidateAction = 'create' | 'patch' | 'view' | 'replace';
 
 export type Properties = {
   [field: string]: unknown;
@@ -14,7 +14,7 @@ export type Properties = {
 export type ExtendedPropertiesSchema = Properties & {
   $virtual?: boolean;
   $create?: boolean | string;
-  $update?: boolean | string;
+  $patch?: boolean | string;
   $view?: boolean | string | ISchemaViewTransform;
   $required?: boolean;
   $allowedEmpty?: boolean;

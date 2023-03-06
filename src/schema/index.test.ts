@@ -94,11 +94,11 @@ test('beforeSave', async () => {
     }),
     restricted: helpers.string({
       $create: false,
-      $update: 'update.test.god',
+      $patch: 'patch.test.god',
     }),
   });
 
-  sch.beforeUpdate = (data, {raw}) => {
+  sch.beforePatch = (data, {raw}) => {
     return {
       ...data,
       upperCase: `${data['upperCase']}`.toUpperCase(),
@@ -113,8 +113,8 @@ test('beforeSave', async () => {
     virtual: 'VirTualz',
   };
 
-  const result1 = await sch.validate('update', data, {
-    permissions: ['update.test'],
+  const result1 = await sch.validate('patch', data, {
+    permissions: ['patch.test'],
   });
 
   expect(result1).toMatchObject({
@@ -127,7 +127,7 @@ test('beforeSave', async () => {
 
   await sch
     .validate('create', data, {
-      permissions: ['update.test'],
+      permissions: ['patch.test'],
     })
     .then(v => {
       expect(v).toBe('Error!');
@@ -138,10 +138,10 @@ test('beforeSave', async () => {
 
   await sch
     .validate(
-      'update',
+      'patch',
       {...data, restricted: 'hacked'},
       {
-        permissions: ['update.test'],
+        permissions: ['patch.test'],
       }
     )
     .then(v => {
@@ -149,16 +149,16 @@ test('beforeSave', async () => {
     })
     .catch(e => {
       expect(e).toMatchObject({
-        message: 'Permission denied to update "restricted".',
+        message: 'Permission denied to patch "restricted".',
       });
     });
 
   await sch
     .validate(
-      'update',
+      'patch',
       {...data, restricted: 'hacked'},
       {
-        permissions: ['update.test', 'update.test.god'],
+        permissions: ['patch.test', 'patch.test.god'],
       }
     )
     .catch(e => {

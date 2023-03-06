@@ -2,7 +2,7 @@ import {ICrudModel, IDataRecord, IQueryParam} from '../types/crud';
 import ResourceSchema from '../schema';
 import {mayi} from '../acl';
 import {IACLActor} from '../types/acl';
-import {ErrorToHttp} from '../types/http';
+import {ErrorToHttp, HttpMethod, IResourceMethodsMapping} from '../types/http';
 import {ISchemaHook} from '../schema/hook';
 
 export default class JuadzResource {
@@ -12,8 +12,18 @@ export default class JuadzResource {
   model: ICrudModel;
   dbConnection: unknown | Function;
 
+  methodsMapping: IResourceMethodsMapping = {
+    create: "POST",
+    replace: "PUT",
+    patch: "PATCH",
+    delete: "DELETE",
+    view: "GET",
+    list: "GET",
+  };
+
   private afterCreateHook: ISchemaHook | null = null;
-  private afterUpdateHook: ISchemaHook | null = null;
+  private afterReplaceHook: ISchemaHook | null = null;
+  private afterPatchHook: ISchemaHook | null = null;
   private afterDeleteHook: ISchemaHook | null = null;
 
   constructor(
@@ -42,8 +52,11 @@ export default class JuadzResource {
       case 'get':
         haveModelFn = !!this.model.get;
         break;
-      case 'update':
-        haveModelFn = !!this.model.update;
+      case 'patch':
+        haveModelFn = !!this.model.patch;
+        break;
+      case 'replace':
+        haveModelFn = !!this.model.replace;
         break;
       case 'create':
         haveModelFn = !!this.model.create;
@@ -92,28 +105,28 @@ export default class JuadzResource {
     return this.schema.viewAs(data, actor);
   }
 
-  async _update(id: string | number, patch: IDataRecord): Promise<IDataRecord> {
-    this.checkModelAction('update');
+  async _patch(id: string | number, patch: IDataRecord): Promise<IDataRecord> {
+    this.checkModelAction('patch');
 
-    if (!this.model.update) {
-      throw new Error('Model.update is not defined');
+    if (!this.model.patch) {
+      throw new Error('Model.patch is not defined');
     }
 
-    return await this.model.update(this.getConnection('update'), id, patch);
+    return await this.model.patch(this.getConnection('patch'), id, patch);
   }
 
-  async update(
+  async patch(
     actor: IACLActor,
     id: string | number,
     patch_: IDataRecord
   ): Promise<IDataRecord> {
-    this.checkModelAction('update');
-    const patch = await this.schema.validate('update', patch_, actor, id);
-    const data = await this._update(id, patch);
+    this.checkModelAction('patch');
+    const patch = await this.schema.validate('patch', patch_, actor, id);
+    const data = await this._patch(id, patch);
 
-    if (this.afterUpdateHook) {
-      this.afterUpdateHook(data, {
-        action: 'update',
+    if (this.afterPatchHook) {
+      this.afterPatchHook(data, {
+        action: 'patch',
         actor,
         raw: patch,
         id: data.id,
@@ -150,6 +163,42 @@ export default class JuadzResource {
     if (this.afterCreateHook) {
       this.afterCreateHook(data, {
         action: 'create',
+        actor,
+        raw: params,
+        id: data.id,
+      });
+    }
+
+    return this.schema.viewAs(data, actor);
+  }
+
+  async _replace(id: string | number, params: IDataRecord): Promise<IDataRecord> {
+    this.checkModelAction('replace');
+
+    if (!this.model.replace) {
+      throw new Error('Model.replace is not defined');
+    }
+
+    return await this.model.replace(this.getConnection('replace'), id, params);
+  }
+
+  async replace(actor: IACLActor, id: string | number, params_: IDataRecord): Promise<IDataRecord> {
+    this.checkModelAction('replace');
+
+    if (!mayi(actor, `replace.${this.permissionName}`)) {
+      throw new ErrorToHttp(
+        `Permission denied replace.${this.permissionName}`,
+        403,
+        {message: 'Permission denied'}
+      );
+    }
+
+    const params = await this.schema.validate('replace', params_, actor);
+    const data = await this._replace(id, params);
+
+    if (this.afterReplaceHook) {
+      this.afterReplaceHook(data, {
+        action: 'replace',
         actor,
         raw: params,
         id: data.id,
@@ -233,8 +282,8 @@ export default class JuadzResource {
   set beforeCreate(h: ISchemaHook) {
     this.schema.beforeCreate = h;
   }
-  set beforeUpdate(h: ISchemaHook) {
-    this.schema.beforeUpdate = h;
+  set beforePatch(h: ISchemaHook) {
+    this.schema.beforePatch = h;
   }
   set beforeDelete(h: ISchemaHook) {
     this.schema.beforeDelete = h;
@@ -246,10 +295,31 @@ export default class JuadzResource {
   set afterCreate(h: ISchemaHook) {
     this.afterCreateHook = h;
   }
-  set afterUpdate(h: ISchemaHook) {
-    this.afterUpdateHook = h;
+  set afterReplace(h: ISchemaHook) {
+    this.afterReplaceHook = h;
+  }
+  set afterPatch(h: ISchemaHook) {
+    this.afterPatchHook = h;
   }
   set afterDelete(h: ISchemaHook) {
     this.afterDeleteHook = h;
+  }
+  setCreateHttpMethod(m: HttpMethod | null) {
+    this.methodsMapping.create = m;
+  }
+  setReplaceHttpMethod(m: HttpMethod | null) {
+    this.methodsMapping.replace = m;
+  }
+  setPatchHttpMethod(m: HttpMethod | null) {
+    this.methodsMapping.patch = m;
+  }
+  setDeleteHttpMethod(m: HttpMethod | null) {
+    this.methodsMapping.delete = m;
+  }
+  setViewHttpMethod(m: HttpMethod | null) {
+    this.methodsMapping.view = m;
+  }
+  setListHttpMethod(m: HttpMethod | null) {
+    this.methodsMapping.list = m;
   }
 }
