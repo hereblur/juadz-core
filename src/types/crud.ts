@@ -1,5 +1,3 @@
-import {IACLActor} from './acl';
-
 export type QueryFilterOperator =
   | '='
   | '!='
@@ -45,11 +43,7 @@ export interface IQueryListResults {
   total: number;
 }
 export interface IQueryListFunction {
-  (
-    connection: unknown,
-    params: IQueryParam,
-    acl: IACLActor
-  ): Promise<IQueryListResults>;
+  (connection: unknown, params: IQueryParam): Promise<IQueryListResults>;
 }
 
 export interface IQueryListResponse {
@@ -62,27 +56,14 @@ export interface IDataRecord {
 }
 
 export interface ICrudModel {
-  get?: (
-    connection: unknown,
-    id: string | number,
-    acl: IACLActor
-  ) => Promise<IDataRecord>;
+  get?: (connection: unknown, id: string | number) => Promise<IDataRecord>;
   update?: (
     connection: unknown,
     id: string | number,
-    patch: IDataRecord,
-    acl: IACLActor
+    patch: IDataRecord
   ) => Promise<IDataRecord>;
-  create?: (
-    connection: unknown,
-    data: IDataRecord,
-    acl: IACLActor
-  ) => Promise<IDataRecord>;
-  delete?: (
-    connection: unknown,
-    id: string | number,
-    acl: IACLActor
-  ) => Promise<number>;
+  create?: (connection: unknown, data: IDataRecord) => Promise<IDataRecord>;
+  delete?: (connection: unknown, id: string | number) => Promise<number>;
   list?: IQueryListFunction;
 }
 

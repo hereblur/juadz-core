@@ -5,73 +5,13 @@ import {mayi} from '../acl';
 import {IACLActor} from '../types/acl';
 import {IDataRecord} from '../types/crud';
 import {ErrorToHttp} from '../types/http';
+import {ISchemaHook} from './hook';
+import {getFlags, stripFlags} from './quick';
+import {ExtendedPropertiesSchema, ValidateAction} from './types';
+export {helpers} from './quick';
 
 const ajv = new Ajv();
 AjvFormats(ajv);
-
-interface ISchemaActionHookParams {
-  action: string;
-  actor: IACLActor;
-  raw: IDataRecord;
-  id?: number | string | unknown;
-}
-
-interface ISchemaActionHook {
-  (data: IDataRecord, params: ISchemaActionHookParams):
-    | IDataRecord
-    | Promise<IDataRecord>;
-}
-
-interface ISchemaViewTransform {
-  (value: unknown, actor: IACLActor, record: IDataRecord): unknown;
-}
-
-interface SimpleObject {
-  [k: string]: unknown;
-}
-
-interface ISchemaFieldOptions extends SimpleObject {
-  isVirtual?: boolean;
-  isCreate?: boolean | string;
-  isUpdate?: boolean | string;
-  isView?: boolean | string | ISchemaViewTransform;
-  isRequired?: boolean;
-  allowedEmpty?: boolean;
-}
-
-interface ISchemaOptions {
-  onCreate?: ISchemaActionHook;
-  onUpdate?: ISchemaActionHook;
-  onView?: ISchemaActionHook;
-  onDelete?: ISchemaActionHook;
-  permissionName?: string;
-}
-
-type ValidateAction = 'create' | 'update' | 'view';
-
-type Properties = {
-  [field: string]: unknown;
-};
-type ExtendedPropertiesSchema = Properties & {
-  lz?: ISchemaFieldOptions;
-};
-
-interface FieldOptions {
-  [key: string]: ISchemaFieldOptions;
-}
-
-const lzAction = (
-  action: ValidateAction
-): 'isCreate' | 'isUpdate' | 'isView' => {
-  switch (action) {
-    case 'create':
-      return 'isCreate';
-    case 'update':
-      return 'isUpdate';
-    case 'view':
-      return 'isView';
-  }
-};
 
 export default class ResourceSchema {
   createSchema: ExtendedPropertiesSchema = {};
@@ -90,49 +30,50 @@ export default class ResourceSchema {
 
   resourceName: string;
 
-  permissionName: string;
-
   requiredFields: Array<string> = [];
 
-  fieldOptions: FieldOptions = {};
+  // fieldOptions: ExtendedPropertiesSchema = {};
 
-  options: ISchemaOptions = {};
+  private _permissionName: string;
+  private beforeCreateHook: ISchemaHook | null = null;
+  private beforeUpdateHook: ISchemaHook | null = null;
+  private afterViewHook: ISchemaHook | null = null;
+  private beforeDeleteHook: ISchemaHook | null = null;
 
-  constructor(
-    resourceName: string,
-    fields: ExtendedPropertiesSchema,
-    schemaOptions?: ISchemaOptions
-  ) {
+  constructor(resourceName: string, fields: ExtendedPropertiesSchema) {
     this.fields = fields;
     this.resourceName = resourceName;
-    this.options = schemaOptions || {};
-    this.permissionName = this.options.permissionName || resourceName;
+    // this.options = schemaOptions || {};
+    this._permissionName = resourceName;
 
     Object.keys(fields).forEach(name => {
-      const {lz = {}, ...field} = fields[name] as ExtendedPropertiesSchema;
-      const properties: ExtendedPropertiesSchema = field;
-      this.fieldOptions[name] = lz;
+      const {$create, $update, $view, $required} = getFlags(
+        fields[name] as ExtendedPropertiesSchema
+      );
+      const properties = stripFlags(fields[name] as ExtendedPropertiesSchema);
 
-      if (lz.isCreate !== false) {
+      // this.fieldOptions[name] = { $virtual, $create, $update, $view, $required, $allowedEmpty };
+
+      if ($create !== false) {
         this.createSchema[name] = properties;
-        if (lz.isRequired) {
+        if ($required) {
           this.requiredFields.push(name);
         }
       }
-      if (lz.isUpdate !== false) {
+      if ($update !== false) {
         this.updateSchema[name] = properties;
       }
-      if (lz.isView !== false) {
+      if ($view !== false) {
         this.viewSchema[name] = properties;
       }
     });
 
-    this.createValidator = ajv.compile(this.jsonSchema('create'));
-    this.updateValidator = ajv.compile(this.jsonSchema('update'));
-    this.viewValidator = ajv.compile(this.jsonSchema('view'));
+    this.createValidator = ajv.compile(this.getJsonSchema('create'));
+    this.updateValidator = ajv.compile(this.getJsonSchema('update'));
+    this.viewValidator = ajv.compile(this.getJsonSchema('view'));
   }
 
-  jsonSchema(action: ValidateAction): JSONSchemaType<IDataRecord> {
+  getJsonSchema(action: ValidateAction): JSONSchemaType<IDataRecord> {
     switch (action) {
       case 'create':
         return {
@@ -170,8 +111,8 @@ export default class ResourceSchema {
     let errors = null;
 
     if (action === 'delete') {
-      if (this.options.onDelete) {
-        await this.options.onDelete(
+      if (this.beforeDeleteHook) {
+        await this.beforeDeleteHook(
           {},
           {action, actor, id: updatingId, raw: {}}
         );
@@ -203,8 +144,8 @@ export default class ResourceSchema {
       }
     }
 
-    if (!mayi(actor, `${action}.${this.permissionName}`)) {
-      console.log(JSON.stringify(actor), `${action}.${this.permissionName}`);
+    if (!mayi(actor, `${action}.${this._permissionName}`)) {
+      // console.log(JSON.stringify(actor), `${action}.${this._permissionName}`);
       throw new ErrorToHttp('Permission denied', 403, true);
     }
 
@@ -214,15 +155,20 @@ export default class ResourceSchema {
 
     await Promise.all(
       valueKeys.map(async fname => {
-        const {lz = {}, ...field} = this.fields[
-          fname
-        ] as ExtendedPropertiesSchema;
+        const {$virtual, $create, $update, $view} = getFlags(
+          this.fields[fname] as ExtendedPropertiesSchema
+        );
+        const field = stripFlags(
+          this.fields[fname] as ExtendedPropertiesSchema
+        );
+
+        const hooks: ExtendedPropertiesSchema = {$create, $update, $view};
 
         if (!field) {
           throw new ErrorToHttp(`Unknown field ${fname}`, 400, true);
         }
 
-        if (lz[lzAction(action)] === false) {
+        if (hooks[`${action}`] === false) {
           throw new ErrorToHttp(
             `Field ${fname} not allowed to ${action}.`,
             403,
@@ -230,8 +176,11 @@ export default class ResourceSchema {
           );
         }
 
-        if (typeof lz[lzAction(action)] === 'string') {
-          if (!mayi(actor, lz[lzAction(action)] as string)) {
+        // console.log(fname, action, hooks[`\$${action}`], 'FFF', this.fields[fname], hooks)
+        if (typeof hooks[`$${action}`] === 'string') {
+          const permission = hooks[`$${action}`] as string;
+          //console.log(fname, mayi(actor, permission), actor, permission, actor.permissions.includes(permission))
+          if (!mayi(actor, permission)) {
             throw new ErrorToHttp(
               `Permission denied to ${action} "${fname}".`,
               403,
@@ -240,7 +189,7 @@ export default class ResourceSchema {
           }
         }
 
-        const patch: IDataRecord = lz.isVirtual ? {} : {[fname]: data[fname]};
+        const patch: IDataRecord = $virtual ? {} : {[fname]: data[fname]};
 
         Object.keys(patch).forEach(k => (output[k] = patch[k]));
       })
@@ -248,8 +197,8 @@ export default class ResourceSchema {
 
     switch (action) {
       case 'create':
-        if (this.options.onCreate) {
-          return await this.options.onCreate(output, {
+        if (this.beforeCreateHook) {
+          return await this.beforeCreateHook(output, {
             raw: data,
             actor,
             action,
@@ -257,8 +206,8 @@ export default class ResourceSchema {
         }
         break;
       case 'update':
-        if (this.options.onUpdate) {
-          return await this.options.onUpdate(output, {
+        if (this.beforeUpdateHook) {
+          return await this.beforeUpdateHook(output, {
             raw: data,
             actor,
             action,
@@ -267,8 +216,8 @@ export default class ResourceSchema {
         }
         break;
       case 'view':
-        if (this.options.onView) {
-          return await this.options.onView(output, {
+        if (this.afterViewHook) {
+          return await this.afterViewHook(output, {
             raw: data,
             actor,
             action,
@@ -287,29 +236,30 @@ export default class ResourceSchema {
       return data;
     }
 
-    if (!mayi(actor, `view.${this.permissionName}`)) {
+    if (!mayi(actor, `view.${this._permissionName}`)) {
       throw new ErrorToHttp('Permission denied', 403, true);
     }
 
     Object.keys(this.fields).forEach(fname => {
-      const {lz = {}} = this.fields[fname] as ExtendedPropertiesSchema;
+      const {$virtual, $view} = this.fields[fname] as ExtendedPropertiesSchema;
 
-      if (!lz || lz.isView === false) {
+      if ($view === false) {
         return;
       }
 
-      if (typeof lz.isView === 'function') {
-        output[fname] = lz.isView(data[fname], actor, data);
+      // console.log(fname, typeof $view, $view, this.fields[fname]);
+      if (typeof $view === 'function') {
+        output[fname] = $view(data[fname], actor, data);
         return;
       }
 
-      if (typeof lz.isView === 'string') {
-        if (!mayi(actor, lz.isView)) {
+      if (typeof $view === 'string') {
+        if (!mayi(actor, $view)) {
           return;
         }
       }
 
-      if (lz.isVirtual) {
+      if ($virtual) {
         return;
       }
 
@@ -318,75 +268,25 @@ export default class ResourceSchema {
 
     return output;
   }
-}
 
-const helperTypes = (
-  lz: ISchemaFieldOptions,
-  baseType: string,
-  extra: object = {}
-) => {
-  const extra2 = {...lz};
-  delete extra2.isVirtual;
-  delete extra2.isCreate;
-  delete extra2.isUpdate;
-  delete extra2.isView;
-  delete extra2.isRequired;
-  delete extra2.allowedEmpty;
-
-  if (lz.allowedEmpty) {
-    return {
-      anyOf: [
-        {type: baseType, ...extra, ...extra2},
-        {type: 'null'},
-        {type: 'string', maxLength: 0},
-      ],
-    };
+  set beforeCreate(h: ISchemaHook) {
+    this.beforeCreateHook = h;
+  }
+  set beforeUpdate(h: ISchemaHook) {
+    this.beforeUpdateHook = h;
+  }
+  set afterView(h: ISchemaHook) {
+    this.afterViewHook = h;
+  }
+  set beforeDelete(h: ISchemaHook) {
+    this.beforeDeleteHook = h;
   }
 
-  return {type: baseType, ...extra, ...extra2};
-};
+  set permissionName(p: string) {
+    this._permissionName = p;
+  }
 
-export const helpers = {
-  string(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'string', {maxLength: 255}), lz};
-  },
-
-  text(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'string'), lz};
-  },
-
-  integer(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'integer'), lz};
-  },
-
-  number(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'number'), lz};
-  },
-
-  dateTime(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'string', {format: 'date-time'}), lz};
-  },
-
-  boolean(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'boolean'), lz};
-  },
-
-  email(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'string', {format: 'email'}), lz};
-  },
-
-  url(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'string', {format: 'uri'}), lz};
-  },
-
-  uri(lz: ISchemaFieldOptions = {}): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'string', {format: 'uri'}), lz};
-  },
-
-  enum(
-    enumValues: Array<string>,
-    lz: ISchemaFieldOptions = {}
-  ): ExtendedPropertiesSchema {
-    return {...helperTypes(lz, 'string', {enum: enumValues}), lz};
-  },
-};
+  get permissionName(): string {
+    return this._permissionName;
+  }
+}

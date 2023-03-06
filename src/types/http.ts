@@ -24,11 +24,6 @@ export class ErrorToHttp extends Error {
     } else {
       this.body = body || {message: 'Internal server error!'};
     }
-    // Set the prototype explicitly.
     Object.setPrototypeOf(this, ErrorToHttp.prototype);
-  }
-
-  sayHello() {
-    return 'hello ' + this.message;
   }
 }

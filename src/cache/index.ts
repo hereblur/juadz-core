@@ -22,14 +22,18 @@ export default class JuadzCache {
   async retrieve(
     key: string,
     ageSeconds: number,
-    getDataIfCacheMissed: () => Promise<unknown>
+    cacheMissGetData: () => Promise<unknown>,
+    cacheHitCallback?: Function
   ): Promise<unknown> {
     const data = await this.client.get(key);
     if (data) {
+      if (cacheHitCallback) {
+        cacheHitCallback(key, data);
+      }
       return data;
     }
 
-    const newData = await getDataIfCacheMissed();
+    const newData = await cacheMissGetData();
     if (newData) {
       this.client.put(key, newData, ageSeconds);
     }

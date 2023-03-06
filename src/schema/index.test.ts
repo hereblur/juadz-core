@@ -2,14 +2,14 @@ import ResourceSchema, {helpers} from './index';
 
 test('create schema', () => {
   let sch = new ResourceSchema('test', {
-    string: {type: 'string', lz: {isRequired: true}},
-    integer: {type: 'integer', lz: {isRequired: true}},
-    number: {type: 'number', lz: {isRequired: true}},
-    dateTime: {type: 'string', lz: {isRequired: true}},
-    boolean: {type: 'boolean', lz: {isRequired: true}},
+    string: {type: 'string', $required: true},
+    integer: {type: 'integer', $required: true},
+    number: {type: 'number', $required: true},
+    dateTime: {type: 'string', $required: true},
+    boolean: {type: 'boolean', $required: true},
   });
 
-  let json = sch.jsonSchema('create');
+  let json = sch.getJsonSchema('create');
 
   expect(json.properties.string).toMatchObject({type: 'string'});
   expect(json.properties.integer).toMatchObject({type: 'integer'});
@@ -18,14 +18,14 @@ test('create schema', () => {
   expect(json.properties.boolean).toMatchObject({type: 'boolean'});
 
   sch = new ResourceSchema('test', {
-    string: helpers.string({isRequired: true}),
-    integer: helpers.integer({isRequired: true}),
-    number: helpers.number({isRequired: true}),
-    dateTime: helpers.dateTime({isRequired: true}),
-    boolean: helpers.boolean({isRequired: true}),
+    string: helpers.string({$required: true}),
+    integer: helpers.integer({$required: true}),
+    number: helpers.number({$required: true}),
+    dateTime: helpers.dateTime({$required: true}),
+    boolean: helpers.boolean({$required: true}),
   });
 
-  json = sch.jsonSchema('create');
+  json = sch.getJsonSchema('create');
 
   expect(json.properties.string).toMatchObject({type: 'string'});
   expect(json.properties.integer).toMatchObject({type: 'integer'});
@@ -35,25 +35,21 @@ test('create schema', () => {
 });
 
 test('filterView', () => {
-  const sch = new ResourceSchema(
-    'test',
-    {
-      string: helpers.string({isRequired: true}),
-      integer: helpers.integer({isRequired: true}),
-      reverse: helpers.string({
-        isRequired: true,
-        isView: (value: unknown) => `${value}`.toUpperCase(),
-      }),
-      secret: helpers.string({isRequired: true, isView: false}),
-      restricted: helpers.string({
-        isRequired: true,
-        isView: 'view.real.restricted',
-      }),
-    },
-    {
-      permissionName: 'real',
-    }
-  );
+  const sch = new ResourceSchema('test', {
+    string: helpers.string({$required: true}),
+    integer: helpers.integer({$required: true}),
+    reverse: helpers.string({
+      $required: true,
+      $view: (value: unknown) => `${value}`.toUpperCase(),
+    }),
+    secret: helpers.string({$required: true, $view: false}),
+    restricted: helpers.string({
+      $required: true,
+      $view: 'view.real.restricted',
+    }),
+  });
+
+  sch.permissionName = 'real';
 
   const data = {
     string: 'public',
@@ -90,30 +86,26 @@ test('filterView', () => {
 });
 
 test('beforeSave', async () => {
-  const sch = new ResourceSchema(
-    'test',
-    {
-      string: helpers.string({}),
-      upperCase: helpers.string({}),
-      virtual: helpers.string({
-        isVirtual: true,
-      }),
-      restricted: helpers.string({
-        isCreate: false,
-        isUpdate: 'update.test.god',
-      }),
-    },
-    {
-      onUpdate: (data, {raw}) => {
-        return {
-          ...data,
-          upperCase: `${data['upperCase']}`.toUpperCase(),
-          restricted: `${data['upperCase']}`.toUpperCase(),
-          hashed: `hashed[${raw['virtual']}]`,
-        };
-      },
-    }
-  );
+  const sch = new ResourceSchema('test', {
+    string: helpers.string({}),
+    upperCase: helpers.string({}),
+    virtual: helpers.string({
+      $virtual: true,
+    }),
+    restricted: helpers.string({
+      $create: false,
+      $update: 'update.test.god',
+    }),
+  });
+
+  sch.beforeUpdate = (data, {raw}) => {
+    return {
+      ...data,
+      upperCase: `${data['upperCase']}`.toUpperCase(),
+      restricted: `${data['upperCase']}`.toUpperCase(),
+      hashed: `hashed[${raw['virtual']}]`,
+    };
+  };
 
   const data = {
     string: 'public',
@@ -171,7 +163,7 @@ test('beforeSave', async () => {
     )
     .catch(e => {
       expect(e).toMatchObject({
-        message: 'Permission denied to update "restricted"',
+        message: 'Should not error',
       });
     });
 });
