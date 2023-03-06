@@ -43,7 +43,7 @@ export interface IQueryListResults {
   total: number;
 }
 export interface IQueryListFunction {
-  (connection: unknown, params: IQueryParam): Promise<IQueryListResults>;
+  (params: IQueryParam): Promise<IQueryListResults>;
 }
 
 export interface IQueryListResponse {
@@ -55,22 +55,19 @@ export interface IDataRecord {
   [key: string]: unknown;
 }
 
-export interface ICrudModel {
-  get?: (connection: unknown, id: string | number) => Promise<IDataRecord>;
-  patch?: (
-    connection: unknown,
-    id: string | number,
-    patch: IDataRecord
-  ) => Promise<IDataRecord>;
-  replace?: (
-    connection: unknown,
-    id: string | number,
-    data: IDataRecord
-  ) => Promise<IDataRecord>;
-  create?: (connection: unknown, data: IDataRecord) => Promise<IDataRecord>;
-  delete?: (connection: unknown, id: string | number) => Promise<number>;
+export interface IDatabaseConnection {
+  get?: (id: string | number) => Promise<IDataRecord>;
+  update?: (id: string | number, patch: IDataRecord) => Promise<IDataRecord>;
+  replace?: (id: string | number, data: IDataRecord) => Promise<IDataRecord>;
+  create?: (data: IDataRecord) => Promise<IDataRecord>;
+  delete?: (id: string | number) => Promise<number>;
   list?: IQueryListFunction;
 }
+
+export type DatabaseConnectionGetter = (
+  resourceName: string,
+  action: string
+) => IDatabaseConnection;
 
 export interface IQueryAdaptor {
   parser: (resource: string, queryString: object) => IQueryParam;

@@ -2,7 +2,6 @@ import JuadzSchema, {helpers as JuadzSchemaHelpers} from './schema';
 import JuadzResource from './resource';
 export * from './acl';
 
-export * from './types/auth';
 export * from './types/http';
 export * from './types/acl';
 export * from './types/crud';

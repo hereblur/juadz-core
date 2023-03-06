@@ -5,7 +5,7 @@ export interface ISchemaViewTransform {
   (value: unknown, actor: IACLActor, record: IDataRecord): unknown;
 }
 
-export type ValidateAction = 'create' | 'patch' | 'view' | 'replace';
+export type ValidateAction = 'create' | 'update' | 'view' | 'replace';
 
 export type Properties = {
   [field: string]: unknown;

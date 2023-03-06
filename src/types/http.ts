@@ -9,7 +9,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export interface IResourceMethodsMapping {
   create: HttpMethod | null;
   replace: HttpMethod | null;
-  patch: HttpMethod | null;
+  update: HttpMethod | null;
   delete: HttpMethod | null;
   view: HttpMethod | null;
   list: HttpMethod | null;

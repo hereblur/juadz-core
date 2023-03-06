@@ -18,7 +18,7 @@ export default class ResourceSchema {
 
   replaceSchema: ExtendedPropertiesSchema = {};
 
-  patchSchema: ExtendedPropertiesSchema = {};
+  updateSchema: ExtendedPropertiesSchema = {};
 
   viewSchema: ExtendedPropertiesSchema = {};
 
@@ -28,7 +28,7 @@ export default class ResourceSchema {
 
   viewValidator?: ValidateFunction;
 
-  patchValidator?: ValidateFunction;
+  updateValidator?: ValidateFunction;
 
   fields: ExtendedPropertiesSchema;
 
@@ -40,7 +40,7 @@ export default class ResourceSchema {
 
   private _permissionName: string;
   private beforeCreateHook: ISchemaHook | null = null;
-  private beforePatchHook: ISchemaHook | null = null;
+  private beforeUpdateHook: ISchemaHook | null = null;
   private beforeReplaceHook: ISchemaHook | null = null;
   private afterViewHook: ISchemaHook | null = null;
   private beforeDeleteHook: ISchemaHook | null = null;
@@ -52,12 +52,12 @@ export default class ResourceSchema {
     this._permissionName = resourceName;
 
     Object.keys(fields).forEach(name => {
-      const {$create, $replace, $patch, $view, $required} = getFlags(
+      const {$create, $replace, $update, $view, $required} = getFlags(
         fields[name] as ExtendedPropertiesSchema
       );
       const properties = stripFlags(fields[name] as ExtendedPropertiesSchema);
 
-      // this.fieldOptions[name] = { $virtual, $create, $patch, $view, $required, $allowedEmpty };
+      // this.fieldOptions[name] = { $virtual, $create, $update, $view, $required, $allowedEmpty };
 
       if ($create !== false) {
         this.createSchema[name] = properties;
@@ -71,8 +71,8 @@ export default class ResourceSchema {
           this.requiredFields.push(name);
         }
       }
-      if ($patch !== false) {
-        this.patchSchema[name] = properties;
+      if ($update !== false) {
+        this.updateSchema[name] = properties;
       }
       if ($view !== false) {
         this.viewSchema[name] = properties;
@@ -81,7 +81,7 @@ export default class ResourceSchema {
 
     this.createValidator = ajv.compile(this.getJsonSchema('create'));
     this.replaceValidator = ajv.compile(this.getJsonSchema('replace'));
-    this.patchValidator = ajv.compile(this.getJsonSchema('patch'));
+    this.updateValidator = ajv.compile(this.getJsonSchema('update'));
     this.viewValidator = ajv.compile(this.getJsonSchema('view'));
   }
 
@@ -105,11 +105,12 @@ export default class ResourceSchema {
           required: this.requiredFields as Array<never>,
         };
 
-      case 'patch':
+      case 'update':
         return {
           type: 'object',
           additionalProperties: false,
-          properties: (this.patchSchema || {}) as PropertiesSchema<IDataRecord>,
+          properties: (this.updateSchema ||
+            {}) as PropertiesSchema<IDataRecord>,
         };
 
       case 'view':
@@ -134,7 +135,13 @@ export default class ResourceSchema {
       if (this.beforeDeleteHook) {
         await this.beforeDeleteHook(
           {},
-          {action, actor, id: updatingId, raw: {}}
+          {
+            resourceName: this.resourceName,
+            action,
+            actor,
+            id: updatingId,
+            raw: {},
+          }
         );
       }
       return {};
@@ -149,9 +156,9 @@ export default class ResourceSchema {
         pass = this.replaceValidator ? this.replaceValidator(data) : pass;
         errors = this.replaceValidator ? this.replaceValidator.errors : errors;
         break;
-      case 'patch':
-        pass = this.patchValidator ? this.patchValidator(data) : pass;
-        errors = this.patchValidator ? this.patchValidator.errors : errors;
+      case 'update':
+        pass = this.updateValidator ? this.updateValidator(data) : pass;
+        errors = this.updateValidator ? this.updateValidator.errors : errors;
         break;
       case 'view':
         pass = this.viewValidator ? this.viewValidator(data) : pass;
@@ -179,7 +186,7 @@ export default class ResourceSchema {
 
     await Promise.all(
       valueKeys.map(async fname => {
-        const {$virtual, $create, $patch, $replace, $view} = getFlags(
+        const {$virtual, $create, $update, $replace, $view} = getFlags(
           this.fields[fname] as ExtendedPropertiesSchema
         );
         const field = stripFlags(
@@ -188,7 +195,7 @@ export default class ResourceSchema {
 
         const hooks: ExtendedPropertiesSchema = {
           $create,
-          $patch,
+          $update,
           $view,
           $replace,
         };
@@ -226,6 +233,7 @@ export default class ResourceSchema {
       case 'create':
         if (this.beforeCreateHook) {
           return await this.beforeCreateHook(output, {
+            resourceName: this.resourceName,
             raw: data,
             actor,
             action,
@@ -235,15 +243,17 @@ export default class ResourceSchema {
       case 'replace':
         if (this.beforeReplaceHook) {
           return await this.beforeReplaceHook(output, {
+            resourceName: this.resourceName,
             raw: data,
             actor,
             action,
           });
         }
         break;
-      case 'patch':
-        if (this.beforePatchHook) {
-          return await this.beforePatchHook(output, {
+      case 'update':
+        if (this.beforeUpdateHook) {
+          return await this.beforeUpdateHook(output, {
+            resourceName: this.resourceName,
             raw: data,
             actor,
             action,
@@ -254,6 +264,7 @@ export default class ResourceSchema {
       case 'view':
         if (this.afterViewHook) {
           return await this.afterViewHook(output, {
+            resourceName: this.resourceName,
             raw: data,
             actor,
             action,
@@ -308,8 +319,8 @@ export default class ResourceSchema {
   set beforeCreate(h: ISchemaHook) {
     this.beforeCreateHook = h;
   }
-  set beforePatch(h: ISchemaHook) {
-    this.beforePatchHook = h;
+  set beforeUpdate(h: ISchemaHook) {
+    this.beforeUpdateHook = h;
   }
   set beforeReplace(h: ISchemaHook) {
     this.beforeReplaceHook = h;
