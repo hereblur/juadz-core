@@ -2,6 +2,7 @@ import {
   DatabaseConnectionGetter,
   IDatabaseConnection,
   IDataRecord,
+  IQueryAdaptor,
   IQueryParam,
 } from '../types/crud';
 import ResourceSchema from '../schema';
@@ -9,6 +10,8 @@ import {mayi} from '../acl';
 import {IACLActor} from '../types/acl';
 import {ErrorToHttp, HttpMethod, IResourceMethodsMapping} from '../types/http';
 import {ISchemaHook} from '../schema/hook';
+import { endpointWithIDSchema, listParamsSchema } from './endpoints';
+import { IResourceEndpoint, IResourceHandlerParams } from '../types/common';
 
 export default class JuadzResource {
   resourceName: string;
@@ -21,9 +24,12 @@ export default class JuadzResource {
     replace: 'PUT',
     update: 'PATCH',
     delete: 'DELETE',
-    view: 'GET',
+    view: 'GET', // deprecated
+    get: 'GET',
     list: 'GET',
   };
+
+  endpoints: IResourceEndpoint[] = [];
 
   private afterCreateHook: ISchemaHook | null = null;
   private afterReplaceHook: ISchemaHook | null = null;
@@ -34,6 +40,144 @@ export default class JuadzResource {
     this.resourceName = schema.resourceName;
     this.schema = schema;
     this._permissionName = schema.permissionName || schema.resourceName;
+
+  }
+
+  getEndpoints(listAdaptor?: IQueryAdaptor ): IResourceEndpoint[] {
+    const endpoints: IResourceEndpoint[] = [];
+
+    if (this.methodsMapping.get || this.methodsMapping.view) {
+      endpoints.push({
+        path: ':id',
+        method: this.methodsMapping.get || this.methodsMapping.view || 'GET',
+        
+        paramsSchema: endpointWithIDSchema,
+        responseSchema: this.schema.viewSchema,
+    
+        handler: async (request: IResourceHandlerParams) => {
+          const result = await this.get(request.actor, request.params?.id || 'undefined');
+          return {
+            body: result,
+          }
+        }
+      });
+    }
+
+    if (this.methodsMapping.update) {
+      endpoints.push({
+        path: ':id',
+        method: this.methodsMapping.update,
+        
+        paramsSchema: endpointWithIDSchema,
+        bodySchema: this.schema.updateSchema,
+        responseSchema: this.schema.viewSchema,
+    
+        handler: async (request: IResourceHandlerParams) => {
+          const result = await this.update(request.actor, request.params?.id || 'undefined', request.body as IDataRecord);    
+          return {
+            body: result,
+          }
+        }
+      });
+    }
+
+    if (this.methodsMapping.replace) {
+      endpoints.push({
+        path: ':id',
+        method: this.methodsMapping.replace,
+        
+        paramsSchema: endpointWithIDSchema,
+        bodySchema: this.schema.replaceSchema,
+        responseSchema: this.schema.viewSchema,
+    
+        handler: async (request: IResourceHandlerParams) => {
+          const result = await this.replace(request.actor, request.params?.id || 'undefined', request.body as IDataRecord);    
+          return {
+            body: result,
+          }
+        }
+      });
+    }
+
+    if (this.methodsMapping.create) {
+      endpoints.push({
+        path: '',
+        method: this.methodsMapping.create,
+        
+        bodySchema: this.schema.createSchema,
+        responseSchema: this.schema.viewSchema,
+    
+        handler: async (request: IResourceHandlerParams) => {
+          const result = await this.create(request.actor, request.body as IDataRecord);    
+          return {
+            body: result,
+          }
+        }
+      });
+    }
+
+
+    if (this.methodsMapping.delete) {
+      endpoints.push({
+        path: ':id',
+        method: this.methodsMapping.delete,
+        
+        paramsSchema: endpointWithIDSchema,
+        responseSchema: this.schema.viewSchema,
+
+        handler: async (request: IResourceHandlerParams) => {
+          const result = await this.delete(request.actor, request.params?.id || 'undefined');
+          return {
+            body: {},
+            headers: {'x-deleted-id': `${result}` }
+          }
+        }
+      });
+    }
+
+    if (this.methodsMapping.list && listAdaptor) {
+      endpoints.push({
+        path: '',
+        method: this.methodsMapping.list,
+        
+        querySchema: listParamsSchema(listAdaptor.params),
+        responseSchema: {
+          type: 'array',
+          item: {
+            type: 'object',
+            additionalProperties: false,
+            properties: this.schema.viewSchema,
+          },
+        },
+    
+        handler: async (request: IResourceHandlerParams) => {
+          if (!listAdaptor) {
+            throw new ErrorToHttp('ListAdaptor not defined');
+          }
+          const params = listAdaptor.parser(
+            this.resourceName,
+            request.query as object
+          );
+          const result = await this.list(request.actor, params);
+          const response = listAdaptor.response(
+            result,
+            params,
+            this.resourceName
+          );
+
+          return {
+            body: response.body,
+            headers: response.headers as object,
+          }
+        }
+      });
+    }
+
+    return [...endpoints, ...this.endpoints];
+  }
+
+  addEndpoints(endpoint: IResourceEndpoint) {
+    this.endpoints.push(endpoint);
   }
 
   getConnection(action: string): IDatabaseConnection {

@@ -11,7 +11,8 @@ export interface IResourceMethodsMapping {
   replace: HttpMethod | null;
   update: HttpMethod | null;
   delete: HttpMethod | null;
-  view: HttpMethod | null;
+  view: HttpMethod | null; // deprecated
+  get: HttpMethod | null;
   list: HttpMethod | null;
 }
 
