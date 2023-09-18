@@ -55,6 +55,22 @@ export interface IDataRecord {
   [key: string]: unknown;
 }
 
+export interface IDatabaseModel {
+  get?: (id: string | number) => Promise<IDataRecord>;
+  update?: (id: string | number, patch: IDataRecord) => Promise<IDataRecord>;
+  replace?: (id: string | number, data: IDataRecord) => Promise<IDataRecord>;
+  create?: (data: IDataRecord) => Promise<IDataRecord>;
+  delete?: (id: string | number) => Promise<number>;
+  list?: IQueryListFunction;
+}
+
+export type DatabaseModelGetter = (
+  resourceName: string,
+  action: string
+) => IDatabaseModel;
+
+// TODO: remove this
+// deprecated
 export interface IDatabaseConnection {
   get?: (id: string | number) => Promise<IDataRecord>;
   update?: (id: string | number, patch: IDataRecord) => Promise<IDataRecord>;
@@ -64,10 +80,13 @@ export interface IDatabaseConnection {
   list?: IQueryListFunction;
 }
 
+// TODO: remove this
+// deprecated
 export type DatabaseConnectionGetter = (
   resourceName: string,
   action: string
 ) => IDatabaseConnection;
+
 
 export interface IQueryAdaptor {
   parser: (resource: string, queryString: object) => IQueryParam;

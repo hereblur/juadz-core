@@ -1,6 +1,9 @@
 import {
   DatabaseConnectionGetter,
   IDatabaseConnection,
+
+  DatabaseModelGetter,
+  IDatabaseModel,
   IDataRecord,
   IQueryAdaptor,
   IQueryParam,
@@ -17,7 +20,17 @@ export default class JuadzResource {
   resourceName: string;
   private _permissionName: string;
   schema: ResourceSchema;
-  dbConnection: IDatabaseConnection | DatabaseConnectionGetter | null = null;
+  dbModel: IDatabaseModel | DatabaseModelGetter | null = null;
+
+  static defaultMethodsMapping: IResourceMethodsMapping = {
+    create: 'POST',
+    replace: 'PUT',
+    update: 'PATCH',
+    delete: 'DELETE',
+    view: 'GET', // deprecated
+    get: 'GET',
+    list: 'GET',
+  };
 
   methodsMapping: IResourceMethodsMapping = {
     create: 'POST',
@@ -36,11 +49,13 @@ export default class JuadzResource {
   private afterUpdateHook: ISchemaHook | null = null;
   private afterDeleteHook: ISchemaHook | null = null;
 
+
   constructor(schema: ResourceSchema) {
     this.resourceName = schema.resourceName;
     this.schema = schema;
     this._permissionName = schema.permissionName || schema.resourceName;
 
+    this.methodsMapping = {...JuadzResource.defaultMethodsMapping};
   }
 
   getEndpoints(listAdaptor?: IQueryAdaptor ): IResourceEndpoint[] {
@@ -180,37 +195,37 @@ export default class JuadzResource {
     this.endpoints.push(endpoint);
   }
 
-  getConnection(action: string): IDatabaseConnection {
-    if (!this.dbConnection) {
+  getConnection(action: string): IDatabaseModel {
+    if (!this.dbModel) {
       throw new Error(`No database defined for resource ${this.resourceName}`);
     }
-    if (typeof this.dbConnection === 'function') {
-      return this.dbConnection(this.resourceName, action);
+    if (typeof this.dbModel === 'function') {
+      return this.dbModel(this.resourceName, action);
     }
 
-    return this.dbConnection;
+    return this.dbModel;
   }
 
-  checkDatabaseMethod(dbConnection: IDatabaseConnection, action: string) {
+  checkDatabaseMethod(dbModel: IDatabaseModel, action: string) {
     let haveModelFn = false;
     switch (action) {
       case 'get':
-        haveModelFn = !!dbConnection.get;
+        haveModelFn = !!dbModel.get;
         break;
       case 'update':
-        haveModelFn = !!dbConnection.update;
+        haveModelFn = !!dbModel.update;
         break;
       case 'replace':
-        haveModelFn = !!dbConnection.replace;
+        haveModelFn = !!dbModel.replace;
         break;
       case 'create':
-        haveModelFn = !!dbConnection.create;
+        haveModelFn = !!dbModel.create;
         break;
       case 'delete':
-        haveModelFn = !!dbConnection.delete;
+        haveModelFn = !!dbModel.delete;
         break;
       case 'list':
-        haveModelFn = !!dbConnection.list;
+        haveModelFn = !!dbModel.list;
         break;
     }
     if (!haveModelFn) {
@@ -499,8 +514,13 @@ export default class JuadzResource {
     this.methodsMapping.list = m;
   }
 
+  // deprecated
   set database(d: IDatabaseConnection | DatabaseConnectionGetter) {
-    this.dbConnection = d;
+    this.dbModel = d;
+  }
+
+  set model(d: IDatabaseModel | DatabaseModelGetter) {
+    this.dbModel = d;
   }
 
   set permissionName(p: string) {
