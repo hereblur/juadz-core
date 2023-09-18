@@ -11,7 +11,6 @@ export interface IResourceMethodsMapping {
   replace: HttpMethod | null;
   update: HttpMethod | null;
   delete: HttpMethod | null;
-  view: HttpMethod | null; // deprecated
   get: HttpMethod | null;
   list: HttpMethod | null;
 }
@@ -31,6 +30,7 @@ export class ErrorToHttp extends Error {
 
     this.headers = headers;
     this.statusCode = statusCode;
+    
     if (body === true) {
       this.body = {message: msg};
     } else {

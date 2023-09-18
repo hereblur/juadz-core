@@ -1,18 +1,14 @@
 import {
-  DatabaseConnectionGetter,
-  IDatabaseConnection,
-
-  DatabaseModelGetter,
   IDatabaseModel,
   IDataRecord,
   IQueryAdaptor,
   IQueryParam,
 } from '../types/crud';
 import ResourceSchema from '../schema';
-import {mayi} from '../acl';
-import {IACLActor} from '../types/acl';
-import {ErrorToHttp, HttpMethod, IResourceMethodsMapping} from '../types/http';
-import {ISchemaHook} from '../schema/hook';
+import { mayi } from '../acl';
+import { IACLActor } from '../types/acl';
+import { ErrorToHttp, HttpMethod, IResourceMethodsMapping } from '../types/http';
+import { ISchemaHook } from '../schema/hook';
 import { endpointWithIDSchema, listParamsSchema } from './endpoints';
 import { IResourceEndpoint, IResourceHandlerParams } from '../types/common';
 
@@ -20,14 +16,13 @@ export default class JuadzResource {
   resourceName: string;
   private _permissionName: string;
   schema: ResourceSchema;
-  dbModel: IDatabaseModel | DatabaseModelGetter | null = null;
+  dbModel: IDatabaseModel | null = null;
 
   static defaultMethodsMapping: IResourceMethodsMapping = {
     create: 'POST',
     replace: 'PUT',
     update: 'PATCH',
     delete: 'DELETE',
-    view: 'GET', // deprecated
     get: 'GET',
     list: 'GET',
   };
@@ -37,7 +32,6 @@ export default class JuadzResource {
     replace: 'PUT',
     update: 'PATCH',
     delete: 'DELETE',
-    view: 'GET', // deprecated
     get: 'GET',
     list: 'GET',
   };
@@ -61,10 +55,10 @@ export default class JuadzResource {
   getEndpoints(listAdaptor?: IQueryAdaptor ): IResourceEndpoint[] {
     const endpoints: IResourceEndpoint[] = [];
 
-    if (this.methodsMapping.get || this.methodsMapping.view) {
+    if (this.methodsMapping.get) {
       endpoints.push({
         path: ':id',
-        method: this.methodsMapping.get || this.methodsMapping.view || 'GET',
+        method: this.methodsMapping.get || 'GET',
         
         paramsSchema: endpointWithIDSchema,
         responseSchema: this.schema.viewSchema,
@@ -195,12 +189,9 @@ export default class JuadzResource {
     this.endpoints.push(endpoint);
   }
 
-  getConnection(action: string): IDatabaseModel {
+  getConnection(): IDatabaseModel {
     if (!this.dbModel) {
       throw new Error(`No database defined for resource ${this.resourceName}`);
-    }
-    if (typeof this.dbModel === 'function') {
-      return this.dbModel(this.resourceName, action);
     }
 
     return this.dbModel;
@@ -240,7 +231,7 @@ export default class JuadzResource {
   }
 
   async _get(id: string | number): Promise<IDataRecord> {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'get');
     if (!conn.get) {
       throw new Error('Model.get is not defined');
@@ -250,7 +241,7 @@ export default class JuadzResource {
   }
 
   async get(actor: IACLActor, id: string | number): Promise<IDataRecord> {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'get');
 
     if (!mayi(actor, `view.${this._permissionName}`)) {
@@ -270,7 +261,7 @@ export default class JuadzResource {
     id: string | number,
     update: IDataRecord
   ): Promise<IDataRecord> {
-    const conn = this.getConnection('update');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'update');
 
     if (!conn.update) {
@@ -285,7 +276,7 @@ export default class JuadzResource {
     id: string | number,
     update_: IDataRecord
   ): Promise<IDataRecord> {
-    const conn = this.getConnection('update');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'update');
 
     if (!mayi(actor, `update.${this._permissionName}`)) {
@@ -313,7 +304,7 @@ export default class JuadzResource {
   }
 
   async _create(params: IDataRecord): Promise<IDataRecord> {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'create');
 
     if (!conn.create) {
@@ -324,7 +315,7 @@ export default class JuadzResource {
   }
 
   async create(actor: IACLActor, params_: IDataRecord): Promise<IDataRecord> {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'create');
 
     if (!mayi(actor, `create.${this._permissionName}`)) {
@@ -355,7 +346,7 @@ export default class JuadzResource {
     id: string | number,
     params: IDataRecord
   ): Promise<IDataRecord> {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'replace');
 
     if (!conn.replace) {
@@ -370,7 +361,7 @@ export default class JuadzResource {
     id: string | number,
     params_: IDataRecord
   ): Promise<IDataRecord> {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'replace');
 
     if (!mayi(actor, `replace.${this._permissionName}`)) {
@@ -398,7 +389,7 @@ export default class JuadzResource {
   }
 
   async _delete(id: string | number) {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'delete');
 
     if (!conn.delete) {
@@ -409,7 +400,7 @@ export default class JuadzResource {
   }
 
   async delete(actor: IACLActor, id: string | number) {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'delete');
 
     if (!mayi(actor, `delete.${this._permissionName}`)) {
@@ -438,7 +429,7 @@ export default class JuadzResource {
   }
 
   async _list(params: IQueryParam) {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'list');
 
     if (!conn.list) {
@@ -451,7 +442,7 @@ export default class JuadzResource {
   }
 
   async list(actor: IACLActor, params: IQueryParam) {
-    const conn = this.getConnection('view');
+    const conn = this.getConnection();
     this.checkDatabaseMethod(conn, 'list');
 
     if (!mayi(actor, `view.${this._permissionName}`)) {
@@ -507,19 +498,14 @@ export default class JuadzResource {
   set httpMethodDelete(m: HttpMethod | null) {
     this.methodsMapping.delete = m;
   }
-  set httpMethodView(m: HttpMethod | null) {
-    this.methodsMapping.view = m;
+  set httpMethodGet(m: HttpMethod | null) {
+    this.methodsMapping.get = m;
   }
   set httpMethodList(m: HttpMethod | null) {
     this.methodsMapping.list = m;
   }
 
-  // deprecated
-  set database(d: IDatabaseConnection | DatabaseConnectionGetter) {
-    this.dbModel = d;
-  }
-
-  set model(d: IDatabaseModel | DatabaseModelGetter) {
+  set model(d: IDatabaseModel) {
     this.dbModel = d;
   }
 
