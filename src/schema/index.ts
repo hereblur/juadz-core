@@ -7,11 +7,22 @@ import {IDataRecord} from '../types/crud';
 import {ErrorToHttp} from '../types/http';
 import {ISchemaHook} from './hook';
 import {getFlags, stripFlags} from './quick';
-import {ExtendedPropertiesSchema, ValidateAction} from './types';
+import {ExtendedPropertiesSchema, ISchemaViewTransform, Properties, ValidateAction} from './types';
+import Debug from 'debug';
+
+const debug = Debug('juadz:core:schema');
+
 export {helpers} from './quick';
 
 const ajv = new Ajv();
+const ajvView = new Ajv({ removeAdditional: true, coerceTypes: true });
+
 AjvFormats(ajv);
+AjvFormats(ajvView);
+
+interface Meta {
+  [k: string]: unknown;
+}
 
 export default class ResourceSchema {
   createSchema: ExtendedPropertiesSchema = {};
@@ -51,38 +62,89 @@ export default class ResourceSchema {
     // this.options = schemaOptions || {};
     this._permissionName = resourceName;
 
-    Object.keys(fields).forEach(name => {
+    Object.keys(fields).forEach(fieldName => {
       const {$create, $replace, $update, $view, $required} = getFlags(
-        fields[name] as ExtendedPropertiesSchema
+        fields[fieldName] as ExtendedPropertiesSchema
       );
-      const properties = stripFlags(fields[name] as ExtendedPropertiesSchema);
+      const fieldProperties = stripFlags(fields[fieldName] as ExtendedPropertiesSchema);
 
-      // this.fieldOptions[name] = { $virtual, $create, $update, $view, $required, $allowedEmpty };
+      // this.fieldOptions[fieldName] = { $virtual, $create, $update, $view, $required, $allowedEmpty };
 
       if ($create !== false) {
-        this.createSchema[name] = properties;
-        if ($required && !this.requiredFields.includes(name)) {
-          this.requiredFields.push(name);
+        this.createSchema[fieldName] = { ...fieldProperties, meta: this.makeMeta($create) };
+        if ($required && !this.requiredFields.includes(fieldName)) {
+          this.requiredFields.push(fieldName);
         }
       }
       if ($replace !== false) {
-        this.replaceSchema[name] = properties;
-        if ($required && !this.requiredFields.includes(name)) {
-          this.requiredFields.push(name);
+        this.replaceSchema[fieldName] = { ...fieldProperties, meta: this.makeMeta($replace) };
+        if ($required && !this.requiredFields.includes(fieldName)) {
+          this.requiredFields.push(fieldName);
         }
       }
       if ($update !== false) {
-        this.updateSchema[name] = properties;
+        this.updateSchema[fieldName] = { ...fieldProperties, meta: this.makeMeta($update) };
       }
       if ($view !== false) {
-        this.viewSchema[name] = properties;
+        this.viewSchema[fieldName] = { ...fieldProperties, meta: this.makeMeta($view) };
       }
     });
 
     this.createValidator = ajv.compile(this.getJsonSchema('create'));
     this.replaceValidator = ajv.compile(this.getJsonSchema('replace'));
     this.updateValidator = ajv.compile(this.getJsonSchema('update'));
-    this.viewValidator = ajv.compile(this.getJsonSchema('view'));
+    this.viewValidator = ajvView.compile(this.getJsonSchema('view'));
+  }
+
+  makeMeta($perm: string | boolean | ISchemaViewTransform | undefined): Meta | null {
+    return typeof $perm === 'string' ? { permission: $perm } : null;
+  }
+
+  static toJsonSchema(fields: ExtendedPropertiesSchema): Properties {
+
+    if (fields.type === 'object' && fields.properties) {
+      return {
+        ...fields,
+        properties: Object.keys(fields.properties as object).reduce(
+          (acc, name): ExtendedPropertiesSchema => ({
+            ...acc,
+            [name]: ResourceSchema.toJsonSchema((fields.properties as ExtendedPropertiesSchema)[name] as ExtendedPropertiesSchema),
+          }),
+          {}
+        ), 
+      }
+    } else
+    if (fields.type === 'array' && fields.item) {
+      return {
+        ...fields,
+        item: ResourceSchema.toJsonSchema(fields.item as ExtendedPropertiesSchema),
+      } as ExtendedPropertiesSchema;
+    } else 
+    if (fields.type && typeof fields.type === 'string' && fields.type !== 'object' ) {
+      return stripFlags(fields as ExtendedPropertiesSchema);
+    }
+
+
+    const resultSchema: Properties = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {},
+    };
+
+    Object.keys(fields).forEach(name => {
+      const props = stripFlags(fields[name] as ExtendedPropertiesSchema);
+      const { $required, $allowedEmpty } = getFlags(fields[name] as ExtendedPropertiesSchema);
+
+      (resultSchema.properties as Properties)[name] = props;
+      if ($required) {
+        if (!resultSchema.required) {
+          resultSchema.required = [];
+        }
+        (resultSchema.required as Array<string>).push(name);
+      }
+    });
+
+    return resultSchema;
   }
 
   getJsonSchema(action: ValidateAction): JSONSchemaType<IDataRecord> {
@@ -167,6 +229,7 @@ export default class ResourceSchema {
     }
 
     if (!pass) {
+      debug('Validation failed', JSON.stringify(errors), JSON.stringify(data));
       if (errors) {
         throw new ErrorToHttp('Validate failed', 400, {
           message: 'Invalid input',
@@ -276,7 +339,7 @@ export default class ResourceSchema {
     return output;
   }
 
-  viewAs(data: IDataRecord, actor: IACLActor): IDataRecord {
+  async viewAs(data: IDataRecord, actor: IACLActor): Promise<IDataRecord> {
     const output: IDataRecord = {};
 
     if (!data) {
@@ -313,7 +376,17 @@ export default class ResourceSchema {
       output[fname] = data[fname];
     });
 
+    if (this.afterViewHook) {
+      return await this.afterViewHook(output, {
+        resourceName: this.resourceName,
+        raw: data,
+        actor,
+        action: 'view',
+      });
+    }
+
     return output;
+
   }
 
   set beforeCreate(h: ISchemaHook) {

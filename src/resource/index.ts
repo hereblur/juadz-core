@@ -3,6 +3,7 @@ import {
   IDataRecord,
   IQueryAdaptor,
   IQueryParam,
+  ResourceAction,
 } from '../types/crud';
 import ResourceSchema from '../schema';
 import { mayi } from '../acl';
@@ -17,6 +18,7 @@ export default class JuadzResource {
   private _permissionName: string;
   schema: ResourceSchema;
   dbModel: IDatabaseModel | null = null;
+  availableActions: Array<ResourceAction>;
 
   static defaultMethodsMapping: IResourceMethodsMapping = {
     create: 'POST',
@@ -26,6 +28,15 @@ export default class JuadzResource {
     get: 'GET',
     list: 'GET',
   };
+
+  static defaultAvailableActions: Array<ResourceAction> = [
+    'create',
+    'get',
+    'update',
+    'delete',
+    'list',
+    'replace',
+  ];
 
   methodsMapping: IResourceMethodsMapping = {
     create: 'POST',
@@ -43,22 +54,28 @@ export default class JuadzResource {
   private afterUpdateHook: ISchemaHook | null = null;
   private afterDeleteHook: ISchemaHook | null = null;
 
-
   constructor(schema: ResourceSchema) {
     this.resourceName = schema.resourceName;
     this.schema = schema;
     this._permissionName = schema.permissionName || schema.resourceName;
-
+    this.availableActions = [...JuadzResource.defaultAvailableActions];
     this.methodsMapping = {...JuadzResource.defaultMethodsMapping};
+  }
+
+  have(s: ResourceAction) {
+    return this.availableActions.indexOf(s) !== -1;
   }
 
   getEndpoints(listAdaptor?: IQueryAdaptor ): IResourceEndpoint[] {
     const endpoints: IResourceEndpoint[] = [];
 
-    if (this.methodsMapping.get) {
+    if (this.methodsMapping.get && this.have('get')) {
       endpoints.push({
         path: ':id',
         method: this.methodsMapping.get || 'GET',
+
+        tags: [this.resourceName],
+        description: `Get ${this.resourceName} by id`,
         
         paramsSchema: endpointWithIDSchema,
         responseSchema: this.schema.viewSchema,
@@ -72,13 +89,16 @@ export default class JuadzResource {
       });
     }
 
-    if (this.methodsMapping.update) {
+    if (this.methodsMapping.update && this.have('update')) {
       endpoints.push({
         path: ':id',
         method: this.methodsMapping.update,
+
+        tags: [this.resourceName],
+        description: `Update ${this.resourceName} by id`,
         
         paramsSchema: endpointWithIDSchema,
-        bodySchema: this.schema.updateSchema,
+        bodySchema: this.schema.getJsonSchema('update'), // this.schema.updateSchema,
         responseSchema: this.schema.viewSchema,
     
         handler: async (request: IResourceHandlerParams) => {
@@ -90,13 +110,16 @@ export default class JuadzResource {
       });
     }
 
-    if (this.methodsMapping.replace) {
+    if (this.methodsMapping.replace && this.have('replace')) {
       endpoints.push({
         path: ':id',
         method: this.methodsMapping.replace,
         
+        tags: [this.resourceName],
+        description: `Replace ${this.resourceName} by id`,
+
         paramsSchema: endpointWithIDSchema,
-        bodySchema: this.schema.replaceSchema,
+        bodySchema: this.schema.getJsonSchema('replace'), //: this.schema.replaceSchema,
         responseSchema: this.schema.viewSchema,
     
         handler: async (request: IResourceHandlerParams) => {
@@ -108,12 +131,15 @@ export default class JuadzResource {
       });
     }
 
-    if (this.methodsMapping.create) {
+    if (this.methodsMapping.create && this.have('create')) {
       endpoints.push({
         path: '',
         method: this.methodsMapping.create,
         
-        bodySchema: this.schema.createSchema,
+        tags: [this.resourceName],
+        description: `Create ${this.resourceName}`,
+
+        bodySchema: this.schema.getJsonSchema('create'), // this.schema.createSchema,
         responseSchema: this.schema.viewSchema,
     
         handler: async (request: IResourceHandlerParams) => {
@@ -125,12 +151,14 @@ export default class JuadzResource {
       });
     }
 
-
-    if (this.methodsMapping.delete) {
+    if (this.methodsMapping.delete && this.have('delete')) {
       endpoints.push({
         path: ':id',
         method: this.methodsMapping.delete,
         
+        tags: [this.resourceName],
+        description: `Delete ${this.resourceName} by id`,
+
         paramsSchema: endpointWithIDSchema,
         responseSchema: this.schema.viewSchema,
 
@@ -144,10 +172,13 @@ export default class JuadzResource {
       });
     }
 
-    if (this.methodsMapping.list && listAdaptor) {
+    if (this.methodsMapping.list && listAdaptor && this.have('list')) {
       endpoints.push({
         path: '',
         method: this.methodsMapping.list,
+
+        tags: [this.resourceName],
+        description: `Get list of ${this.resourceName}`,
         
         querySchema: listParamsSchema(listAdaptor.params),
         responseSchema: {
@@ -219,7 +250,9 @@ export default class JuadzResource {
         haveModelFn = !!dbModel.list;
         break;
     }
+
     if (!haveModelFn) {
+      console.error(`Model not defined ${this.resourceName}.${action}, found [${Object.keys(dbModel).join(', ')}]}]`)
       throw new ErrorToHttp(
         `Model not defined ${this.resourceName}.${action}`,
         404,
@@ -254,7 +287,8 @@ export default class JuadzResource {
 
     const data = await this._get(id);
 
-    return this.schema.viewAs(data, actor);
+    // const data_ = await this.schema.validate('view', data, actor, id);
+    return await this.schema.viewAs(data, actor);
   }
 
   async _update(
@@ -300,7 +334,7 @@ export default class JuadzResource {
       });
     }
 
-    return this.schema.viewAs(data, actor);
+    return await this.schema.viewAs(data, actor);
   }
 
   async _create(params: IDataRecord): Promise<IDataRecord> {
@@ -339,7 +373,7 @@ export default class JuadzResource {
       });
     }
 
-    return this.schema.viewAs(data, actor);
+    return await this.schema.viewAs(data, actor);
   }
 
   async _replace(
@@ -385,7 +419,7 @@ export default class JuadzResource {
       });
     }
 
-    return this.schema.viewAs(data, actor);
+    return await this.schema.viewAs(data, actor);
   }
 
   async _delete(id: string | number) {
@@ -454,10 +488,16 @@ export default class JuadzResource {
     }
 
     const {total, data} = await this._list(params);
+    const data_ = await Promise.all(
+      data.map(async (row: IDataRecord) => {
+        // const row_ = await this.schema.validate('view', row, actor)
+        return await this.schema.viewAs(row, actor)
+      })
+    );
 
     return {
       total,
-      data: data.map((row: IDataRecord) => this.schema.viewAs(row, actor)),
+      data: data_//.map((row: IDataRecord) => this.schema.viewAs(row, actor)),
     };
   }
 
@@ -505,8 +545,58 @@ export default class JuadzResource {
     this.methodsMapping.list = m;
   }
 
+  toggleActions(action: ResourceAction, shouldHave: boolean) {
+    if (shouldHave && !this.have(action)) {
+      this.availableActions.push(action);
+    } else 
+    if (!shouldHave && this.have(action)) {
+      this.availableActions.splice(this.availableActions.indexOf(action), 1);
+    }
+  }
+
+  set haveCreate(have: boolean) {
+    this.toggleActions('create', have);
+  }
+  set haveReplace(have: boolean) {
+    this.toggleActions('replace', have);
+  }
+  set haveUpdate(have: boolean) {
+    this.toggleActions('update', have);
+  }
+  set haveDelete(have: boolean) {
+    this.toggleActions('delete', have);
+  }
+  set haveGet(have: boolean) {
+    this.toggleActions('get', have);
+  }
+  set haveList(have: boolean) {
+    this.toggleActions('list', have);
+  }
+
   set model(d: IDatabaseModel) {
     this.dbModel = d;
+
+    const actions: ResourceAction[] = [];
+    if (this.dbModel.create) {
+      actions.push('create');
+    }
+    if (this.dbModel.update) {
+      actions.push('update');
+    }
+    if (this.dbModel.replace) {
+      actions.push('replace');
+    }
+    if (this.dbModel.delete) {
+      actions.push('delete');
+    }
+    if (this.dbModel.get) {
+      actions.push('get');
+    }
+    if (this.dbModel.list) {
+      actions.push('list');
+    }
+
+    this.availableActions = actions;
   }
 
   set permissionName(p: string) {

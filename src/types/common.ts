@@ -1,5 +1,6 @@
 import { ExtendedPropertiesSchema } from "../schema/types";
 import { IACLActor } from "./acl";
+import { ResourceAction } from "./crud";
 
 export type ResourceHandler = (request: IResourceHandlerParams) => Promise<IResourceEndpointReponse>;
 
@@ -17,6 +18,8 @@ export interface IResourceHandlerParams {
     headers?: StringObject | null;
     
     actor: IACLActor;
+
+    request?: unknown;
 }
 
 export interface IResourceEndpointReponse {
@@ -28,7 +31,11 @@ export interface IResourceEndpointReponse {
 export interface IResourceEndpoint {
     path: string;
     method: string;
+    action?: ResourceAction;
     authentication?: string;
+
+    tags?: Array<string>;
+    description?: string;
     
     querySchema?: ExtendedPropertiesSchema;
     paramsSchema?: ExtendedPropertiesSchema;

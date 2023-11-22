@@ -14,7 +14,8 @@ export type Properties = {
 export type ExtendedPropertiesSchema = Properties & {
   $virtual?: boolean;
   $create?: boolean | string;
-  $patch?: boolean | string;
+  $update?: boolean | string;
+  $replace?: boolean | string;
   $view?: boolean | string | ISchemaViewTransform;
   $required?: boolean;
   $allowedEmpty?: boolean;
